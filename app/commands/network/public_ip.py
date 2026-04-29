@@ -12,12 +12,12 @@ from ...utils import (
 
 
 @click.group("ip", cls=ResourceGroup, help="Public IPs.")
-def ip() -> None:
+def public_ip() -> None:
     pass
 
 
 register_list_get(
-    ip,
+    public_ip,
     list_fn="list_public_ips",
     get_fn="get_public_ip",
     default_columns=("ip", "attached_network_interface", "status"),
@@ -37,7 +37,7 @@ register_list_get(
 )
 
 
-@ip.command("create")
+@public_ip.command("create")
 @click.option("--pricing", required=True)
 @click.option("--dr/--no-dr", default=False)
 @click.option("--ddos/--no-ddos", default=True)
@@ -50,7 +50,7 @@ def ip_create(app: AppContext, pricing: str, dr: bool, ddos: bool) -> None:
     )
 
 
-@ip.command("update")
+@public_ip.command("update")
 @click.argument("name_or_id")
 @click.option(
     "--tag", "tags", multiple=True, metavar="K=V", help="Tag k=v pairs (repeatable)."
@@ -75,7 +75,7 @@ def ip_update(app: AppContext, name_or_id: str, tags: tuple[str, ...]) -> None:
     )
 
 
-@ip.command("attach")
+@public_ip.command("attach")
 @click.argument("name_or_id")
 @click.option("--nic", "nic_arg", required=True)
 @click.pass_obj
@@ -88,7 +88,7 @@ def ip_attach(app: AppContext, name_or_id: str, nic_arg: str) -> None:
     )
 
 
-@ip.command("detach")
+@public_ip.command("detach")
 @click.argument("name_or_id")
 @click.pass_obj
 def ip_detach(app: AppContext, name_or_id: str) -> None:
@@ -99,7 +99,7 @@ def ip_detach(app: AppContext, name_or_id: str) -> None:
     )
 
 
-@ip.command("delete")
+@public_ip.command("delete")
 @click.argument("name_or_id")
 @click.option("-y", "--yes", is_flag=True)
 @click.pass_obj

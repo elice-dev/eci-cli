@@ -3,7 +3,7 @@ from __future__ import annotations
 import click
 
 from .block import block
-from .object import obj
+from .object import object_storage
 from .pfs import pfs
 
 
@@ -13,5 +13,5 @@ def storage() -> None:
 
 
 storage.add_command(block)
-storage.add_command(obj)
+storage.add_command(object_storage)
 storage.add_command(pfs)

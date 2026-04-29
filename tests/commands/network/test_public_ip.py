@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from click.testing import CliRunner
 
-from app.commands.network.ip import ip
+from app.commands.network.public_ip import public_ip as ip
 
 
 def test_ip_create(mock_client, app_obj):

@@ -12,12 +12,12 @@ from ...utils import (
 
 
 @click.group("object", cls=ResourceGroup, help="Object storage buckets.")
-def obj() -> None:
+def object_storage() -> None:
     pass
 
 
 register_list_get(
-    obj,
+    object_storage,
     list_fn="list_object_storages",
     get_fn="get_object_storage",
     default_columns=("name", "size_gib", "status"),
@@ -33,7 +33,7 @@ register_list_get(
 )
 
 
-@obj.command("create")
+@object_storage.command("create")
 @click.option("--name", required=True)
 @click.option("--size-gib", "size_gib", required=True, type=int)
 @click.pass_obj
@@ -41,7 +41,7 @@ def obj_create(app: AppContext, name: str, size_gib: int) -> None:
     emit_action_result(app.client.create_object_storage(name=name, size_gib=size_gib))
 
 
-@obj.command("update")
+@object_storage.command("update")
 @click.argument("name_or_id")
 @click.option("--name", default=None)
 @click.option("--size-gib", "size_gib", default=None, type=int)
@@ -66,7 +66,7 @@ def obj_update(
     )
 
 
-@obj.command("delete")
+@object_storage.command("delete")
 @click.argument("name_or_id")
 @click.option("-y", "--yes", is_flag=True)
 @click.pass_obj
@@ -79,7 +79,7 @@ def obj_delete(app: AppContext, name_or_id: str, yes: bool) -> None:
     emit_action_result(app.client.delete_object_storage(oid))
 
 
-@obj.group("user", cls=ResourceGroup, help="Object storage users.")
+@object_storage.group("user", cls=ResourceGroup, help="Object storage users.")
 def obj_user() -> None:
     pass
 

@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from click.testing import CliRunner
 
-from app.commands.storage.object import obj
+from app.commands.storage.object import object_storage as obj
 
 
 def test_object_create(mock_client, app_obj):

@@ -232,7 +232,7 @@ class ECIClient:
     def update_vm(self, vm_id: str, **fields) -> dict:
         return self.patch(f"/user/resource/compute/virtual_machine/{vm_id}", fields)
 
-    def delete_vm(self, vm_id: str) -> dict:
+    def delete_vm(self, vm_id: str) -> dict | None:
         return self.delete(f"/user/resource/compute/virtual_machine/{vm_id}")
 
     def list_allocations(self, **filters) -> list[dict]:
@@ -253,7 +253,7 @@ class ECIClient:
             {**self._scope(), "machine_id": vm_id, "tags": tags or {}},
         )
 
-    def delete_allocation(self, alloc_id: str) -> dict:
+    def delete_allocation(self, alloc_id: str) -> dict | None:
         return self.delete(
             f"/user/resource/compute/virtual_machine_allocation/{alloc_id}"
         )
@@ -290,7 +290,7 @@ class ECIClient:
             f"/user/resource/compute/virtual_cluster/{cluster_id}", fields
         )
 
-    def delete_cluster(self, cluster_id: str) -> dict:
+    def delete_cluster(self, cluster_id: str) -> dict | None:
         return self.delete(f"/user/resource/compute/virtual_cluster/{cluster_id}")
 
     def list_cluster_allocations(self, **filters) -> list[dict]:
@@ -310,7 +310,7 @@ class ECIClient:
             {**self._scope(), "cluster_id": cluster_id, "tags": tags or {}},
         )
 
-    def delete_cluster_allocation(self, alloc_id: str) -> dict:
+    def delete_cluster_allocation(self, alloc_id: str) -> dict | None:
         return self.delete(
             f"/user/resource/compute/virtual_cluster_allocation/{alloc_id}"
         )
@@ -339,7 +339,7 @@ class ECIClient:
     def update_vnet(self, vnet_id: str, **fields) -> dict:
         return self.patch(f"/user/resource/network/virtual_network/{vnet_id}", fields)
 
-    def delete_vnet(self, vnet_id: str) -> dict:
+    def delete_vnet(self, vnet_id: str) -> dict | None:
         return self.delete(f"/user/resource/network/virtual_network/{vnet_id}")
 
     def list_subnets(self, **filters) -> list[dict]:
@@ -372,7 +372,7 @@ class ECIClient:
     def update_subnet(self, subnet_id: str, **fields) -> dict:
         return self.patch(f"/user/resource/network/subnet/{subnet_id}", fields)
 
-    def delete_subnet(self, subnet_id: str) -> dict:
+    def delete_subnet(self, subnet_id: str) -> dict | None:
         return self.delete(f"/user/resource/network/subnet/{subnet_id}")
 
     def list_nics(self, **filters) -> list[dict]:
@@ -412,7 +412,7 @@ class ECIClient:
     def attach_nic(self, nic_id: str, machine_id: str | None) -> dict:
         return self.update_nic(nic_id, attached_machine_id=machine_id)
 
-    def delete_nic(self, nic_id: str) -> dict:
+    def delete_nic(self, nic_id: str) -> dict | None:
         return self.delete(f"/user/resource/network/network_interface/{nic_id}")
 
     def list_public_ips(self, **filters) -> list[dict]:
@@ -448,7 +448,7 @@ class ECIClient:
     def attach_public_ip(self, ip_id: str, nic_id: str | None) -> dict:
         return self.update_public_ip(ip_id, attached_network_interface_id=nic_id)
 
-    def delete_public_ip(self, ip_id: str) -> dict:
+    def delete_public_ip(self, ip_id: str) -> dict | None:
         return self.delete(f"/user/resource/network/public_ip/{ip_id}")
 
     def list_vpns(self, **filters) -> list[dict]:
@@ -467,7 +467,7 @@ class ECIClient:
             },
         )
 
-    def delete_vpn(self, vpn_id: str) -> dict:
+    def delete_vpn(self, vpn_id: str) -> dict | None:
         return self.delete(f"/user/resource/network/vpn/{vpn_id}")
 
     def list_block_storages(self, **filters) -> list[dict]:
@@ -509,7 +509,7 @@ class ECIClient:
     def attach_block_storage(self, bs_id: str, machine_id: str | None) -> dict:
         return self.update_block_storage(bs_id, attached_machine_id=machine_id)
 
-    def delete_block_storage(self, bs_id: str) -> dict:
+    def delete_block_storage(self, bs_id: str) -> dict | None:
         return self.delete(f"/user/resource/storage/block_storage/{bs_id}")
 
     def list_block_snapshots(self, **filters) -> list[dict]:
@@ -538,7 +538,7 @@ class ECIClient:
             f"/user/resource/storage/block_storage/snapshot/{snapshot_id}", fields
         )
 
-    def delete_block_snapshot(self, snapshot_id: str) -> dict:
+    def delete_block_snapshot(self, snapshot_id: str) -> dict | None:
         return self.delete(
             f"/user/resource/storage/block_storage/snapshot/{snapshot_id}"
         )
@@ -581,7 +581,7 @@ class ECIClient:
             fields,
         )
 
-    def delete_snapshot_scheduler(self, sched_id: str) -> dict:
+    def delete_snapshot_scheduler(self, sched_id: str) -> dict | None:
         return self.delete(
             f"/user/resource/storage/block_storage/snapshot_scheduler/{sched_id}"
         )
@@ -605,7 +605,7 @@ class ECIClient:
     def update_object_storage(self, os_id: str, **fields) -> dict:
         return self.patch(f"/user/resource/storage/object_storage/{os_id}", fields)
 
-    def delete_object_storage(self, os_id: str) -> dict:
+    def delete_object_storage(self, os_id: str) -> dict | None:
         return self.delete(f"/user/resource/storage/object_storage/{os_id}")
 
     def list_object_users(self, **filters) -> list[dict]:
@@ -627,7 +627,7 @@ class ECIClient:
             f"/user/resource/storage/object_storage/user/{user_id}", fields
         )
 
-    def delete_object_user(self, user_id: str) -> dict:
+    def delete_object_user(self, user_id: str) -> dict | None:
         return self.delete(f"/user/resource/storage/object_storage/user/{user_id}")
 
     def list_object_grants(self, **filters) -> list[dict]:
@@ -662,7 +662,7 @@ class ECIClient:
             f"/user/resource/storage/object_storage/user_grant/{grant_id}", fields
         )
 
-    def delete_object_grant(self, grant_id: str) -> dict:
+    def delete_object_grant(self, grant_id: str) -> dict | None:
         return self.delete(
             f"/user/resource/storage/object_storage/user_grant/{grant_id}"
         )
@@ -686,7 +686,7 @@ class ECIClient:
             f"/user/resource/storage/parallel_file_system/{pfs_id}", fields
         )
 
-    def delete_pfs(self, pfs_id: str) -> dict:
+    def delete_pfs(self, pfs_id: str) -> dict | None:
         return self.delete(f"/user/resource/storage/parallel_file_system/{pfs_id}")
 
     def list_pfs_members(self, **filters) -> list[dict]:
@@ -715,7 +715,7 @@ class ECIClient:
             },
         )
 
-    def delete_pfs_member(self, member_id: str) -> dict:
+    def delete_pfs_member(self, member_id: str) -> dict | None:
         return self.delete(
             f"/user/resource/storage/parallel_file_system/member/{member_id}"
         )

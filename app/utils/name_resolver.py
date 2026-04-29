@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import os
+import sys
 import uuid
 from dataclasses import dataclass, field
 from typing import Any
@@ -46,7 +48,12 @@ class NameResolver:
             self._cache[list_fn_name] = {
                 i["id"]: self._name_of(i) for i in getattr(self.client, list_fn_name)()
             }
-        except Exception:
+        except Exception as e:
+            if os.environ.get("ECI_DEBUG"):
+                print(
+                    f"[debug] resolver._load({list_fn_name!r}) failed: {e}",
+                    file=sys.stderr,
+                )
             self._cache[list_fn_name] = {}
 
         return self._cache[list_fn_name]

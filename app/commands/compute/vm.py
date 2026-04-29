@@ -40,9 +40,6 @@ register_list_get(
         FilterSpec("tags"),
     ],
 )
-
-
-# Override the auto-registered `__get__` to also list attached resources.
 @vm.command("__get__", hidden=True)
 @click.argument("name_or_id")
 @click.option(
@@ -217,12 +214,30 @@ def vm_update(
 @click.option("-y", "--yes", is_flag=True, help="Skip confirmation.")
 @click.pass_obj
 def vm_delete(app: AppContext, name_or_id: str, cascade: bool, yes: bool) -> None:
-
     vm_id = app.resolver.resolve("list_vms", name_or_id)
     if not yes:
         click.confirm(f"Delete VM {name_or_id} (cascade={cascade})?", abort=True)
 
     if cascade:
+        active = next(
+            (
+                a
+                for a in app.client.list_allocations(machine_id=vm_id)
+                if is_active_allocation(a)
+            ),
+            None,
+        )
+        if active:
+            click.echo(f"Stopping {name_or_id}...")
+            app.client.delete_allocation(active["id"])
+            click.echo("Waiting for VM to become idle...")
+            app.client.wait_for_status(
+                lambda: app.client.get_vm(vm_id),
+                {"idle"},
+                timeout=300,
+                interval=3,
+            )
+
         ips = app.client.list_public_ips(attached_network_interface_id="notnull")
         nics = app.client.list_nics(attached_machine_id=vm_id)
         nic_ids = {n["id"] for n in nics}
@@ -239,7 +254,6 @@ def vm_delete(app: AppContext, name_or_id: str, cascade: bool, yes: bool) -> Non
         for bs in app.client.list_block_storages(attached_machine_id=vm_id):
             app.client.attach_block_storage(bs["id"], None)
             app.client.delete_block_storage(bs["id"])
-
     emit_action_result(app.client.delete_vm(vm_id))
 
 

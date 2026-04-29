@@ -114,6 +114,7 @@ def test_vm_update_patches_resolved_fields():
 def test_vm_delete_cascade_cleans_up_attached_resources():
     client = MagicMock()
     client.list_vms.return_value = [{"id": "vm-1", "name": "demo"}]
+    client.list_allocations.return_value = []  # already idle
     nics = [{"id": "nic-1", "attached_machine_id": "vm-1"}]
     ips = [{"id": "ip-1", "attached_network_interface_id": "nic-1"}]
     bss = [{"id": "bs-1", "attached_machine_id": "vm-1"}]
@@ -126,6 +127,8 @@ def test_vm_delete_cascade_cleans_up_attached_resources():
     result = runner.invoke(vm, ["delete", "demo", "-y"], obj=_app(client))
     assert result.exit_code == 0, result.output
 
+    client.delete_allocation.assert_not_called()
+    client.wait_for_status.assert_not_called()
     client.attach_public_ip.assert_called_once_with("ip-1", None)
     client.delete_public_ip.assert_called_once_with("ip-1")
     client.attach_nic.assert_called_once_with("nic-1", None)
@@ -133,6 +136,31 @@ def test_vm_delete_cascade_cleans_up_attached_resources():
     client.attach_block_storage.assert_called_once_with("bs-1", None)
     client.delete_block_storage.assert_called_once_with("bs-1")
     client.delete_vm.assert_called_once_with("vm-1")
+
+
+def test_vm_delete_cascade_stops_running_vm_first():
+    client = MagicMock()
+    client.list_vms.return_value = [{"id": "vm-1", "name": "demo"}]
+    client.list_allocations.return_value = [
+        {"id": "a-old", "status": "terminated"},
+        {"id": "a-active", "status": "started"},
+    ]
+    client.list_nics.return_value = []
+    client.list_public_ips.return_value = []
+    client.list_block_storages.return_value = []
+    client.delete_vm.return_value = {"id": "vm-1"}
+
+    runner = CliRunner()
+    result = runner.invoke(vm, ["delete", "demo", "-y"], obj=_app(client))
+    assert result.exit_code == 0, result.output
+
+    client.delete_allocation.assert_called_once_with("a-active")
+    client.wait_for_status.assert_called_once()
+    target = client.wait_for_status.call_args.args[1]
+    assert target == {"idle"}
+    client.delete_vm.assert_called_once_with("vm-1")
+    assert "Stopping demo" in result.output
+    assert "Waiting for VM to become idle" in result.output
 
 
 def test_vm_delete_aborts_without_yes_when_no_input():

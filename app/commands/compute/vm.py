@@ -40,6 +40,8 @@ register_list_get(
         FilterSpec("tags"),
     ],
 )
+
+
 @vm.command("__get__", hidden=True)
 @click.argument("name_or_id")
 @click.option(

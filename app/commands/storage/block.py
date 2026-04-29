@@ -66,7 +66,9 @@ def block_create(
             pricing_id=app.resolver.resolve("list_pricings", pricing),
             image_id=app.resolver.resolve("list_images", image) if image else None,
             snapshot_id=(
-                app.resolver.resolve("list_block_snapshots", snapshot) if snapshot else None
+                app.resolver.resolve("list_block_snapshots", snapshot)
+                if snapshot
+                else None
             ),
             dr=dr,
         )

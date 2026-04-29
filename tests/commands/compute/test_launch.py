@@ -41,12 +41,18 @@ def test_launch_full_path(mock_client, app_obj, isolated_config_path):
     result = CliRunner().invoke(
         vm_launch,
         [
-            "--name", "demo",
-            "--password", "pw",
-            "--pricing", "M-8",
-            "--image", "ubuntu",
-            "--size-gib", "100",
-            "--subnet", "default",
+            "--name",
+            "demo",
+            "--password",
+            "pw",
+            "--pricing",
+            "M-8",
+            "--image",
+            "ubuntu",
+            "--size-gib",
+            "100",
+            "--subnet",
+            "default",
         ],
         obj=app_obj,
     )
@@ -64,11 +70,16 @@ def test_launch_no_network_skips_nic_and_ip(mock_client, app_obj, isolated_confi
     result = CliRunner().invoke(
         vm_launch,
         [
-            "--name", "demo",
-            "--password", "pw",
-            "--pricing", "M-8",
-            "--image", "ubuntu",
-            "--size-gib", "100",
+            "--name",
+            "demo",
+            "--password",
+            "pw",
+            "--pricing",
+            "M-8",
+            "--image",
+            "ubuntu",
+            "--size-gib",
+            "100",
             "--no-network",
         ],
         obj=app_obj,
@@ -78,18 +89,26 @@ def test_launch_no_network_skips_nic_and_ip(mock_client, app_obj, isolated_confi
     mock_client.create_public_ip.assert_not_called()
 
 
-def test_launch_no_public_ip_creates_nic_only(mock_client, app_obj, isolated_config_path):
+def test_launch_no_public_ip_creates_nic_only(
+    mock_client, app_obj, isolated_config_path
+):
     _stub_full_launch(mock_client)
 
     result = CliRunner().invoke(
         vm_launch,
         [
-            "--name", "demo",
-            "--password", "pw",
-            "--pricing", "M-8",
-            "--image", "ubuntu",
-            "--size-gib", "100",
-            "--subnet", "default",
+            "--name",
+            "demo",
+            "--password",
+            "pw",
+            "--pricing",
+            "M-8",
+            "--image",
+            "ubuntu",
+            "--size-gib",
+            "100",
+            "--subnet",
+            "default",
             "--no-public-ip",
         ],
         obj=app_obj,
@@ -105,12 +124,18 @@ def test_launch_no_start_skips_allocation(mock_client, app_obj, isolated_config_
     CliRunner().invoke(
         vm_launch,
         [
-            "--name", "demo",
-            "--password", "pw",
-            "--pricing", "M-8",
-            "--image", "ubuntu",
-            "--size-gib", "100",
-            "--subnet", "default",
+            "--name",
+            "demo",
+            "--password",
+            "pw",
+            "--pricing",
+            "M-8",
+            "--image",
+            "ubuntu",
+            "--size-gib",
+            "100",
+            "--subnet",
+            "default",
             "--no-start",
         ],
         obj=app_obj,
@@ -118,18 +143,27 @@ def test_launch_no_start_skips_allocation(mock_client, app_obj, isolated_config_
     mock_client.create_allocation.assert_not_called()
 
 
-def test_launch_reuses_existing_block_storage(mock_client, app_obj, isolated_config_path):
+def test_launch_reuses_existing_block_storage(
+    mock_client, app_obj, isolated_config_path
+):
     _stub_full_launch(mock_client)
-    mock_client.list_block_storages.return_value = [{"id": "bs-existing", "name": "data"}]
+    mock_client.list_block_storages.return_value = [
+        {"id": "bs-existing", "name": "data"}
+    ]
 
     result = CliRunner().invoke(
         vm_launch,
         [
-            "--name", "demo",
-            "--password", "pw",
-            "--pricing", "M-8",
-            "--subnet", "default",
-            "--block-storage", "data",
+            "--name",
+            "demo",
+            "--password",
+            "pw",
+            "--pricing",
+            "M-8",
+            "--subnet",
+            "default",
+            "--block-storage",
+            "data",
         ],
         obj=app_obj,
     )
@@ -138,19 +172,27 @@ def test_launch_reuses_existing_block_storage(mock_client, app_obj, isolated_con
     mock_client.attach_block_storage.assert_called_once_with("bs-existing", "vm-1")
 
 
-def test_launch_block_storage_conflicts_with_size(mock_client, app_obj, isolated_config_path):
+def test_launch_block_storage_conflicts_with_size(
+    mock_client, app_obj, isolated_config_path
+):
     _stub_full_launch(mock_client)
     mock_client.list_block_storages.return_value = [{"id": "bs-1", "name": "data"}]
 
     result = CliRunner().invoke(
         vm_launch,
         [
-            "--name", "demo",
-            "--password", "pw",
-            "--pricing", "M-8",
-            "--subnet", "default",
-            "--block-storage", "data",
-            "--size-gib", "100",
+            "--name",
+            "demo",
+            "--password",
+            "pw",
+            "--pricing",
+            "M-8",
+            "--subnet",
+            "default",
+            "--block-storage",
+            "data",
+            "--size-gib",
+            "100",
         ],
         obj=app_obj,
     )
@@ -165,13 +207,20 @@ def test_launch_nic_conflicts_with_subnet(mock_client, app_obj, isolated_config_
     result = CliRunner().invoke(
         vm_launch,
         [
-            "--name", "demo",
-            "--password", "pw",
-            "--pricing", "M-8",
-            "--image", "ubuntu",
-            "--size-gib", "100",
-            "--subnet", "default",
-            "--nic", "n1",
+            "--name",
+            "demo",
+            "--password",
+            "pw",
+            "--pricing",
+            "M-8",
+            "--image",
+            "ubuntu",
+            "--size-gib",
+            "100",
+            "--subnet",
+            "default",
+            "--nic",
+            "n1",
         ],
         obj=app_obj,
     )
@@ -182,7 +231,18 @@ def test_launch_nic_conflicts_with_subnet(mock_client, app_obj, isolated_config_
 def test_launch_missing_pricing_errors(mock_client, app_obj, isolated_config_path):
     result = CliRunner().invoke(
         vm_launch,
-        ["--name", "demo", "--password", "pw", "--image", "u", "--size-gib", "100", "--subnet", "s"],
+        [
+            "--name",
+            "demo",
+            "--password",
+            "pw",
+            "--image",
+            "u",
+            "--size-gib",
+            "100",
+            "--subnet",
+            "s",
+        ],
         obj=app_obj,
     )
     assert result.exit_code != 0
@@ -192,7 +252,18 @@ def test_launch_missing_pricing_errors(mock_client, app_obj, isolated_config_pat
 def test_launch_missing_subnet_errors(mock_client, app_obj, isolated_config_path):
     result = CliRunner().invoke(
         vm_launch,
-        ["--name", "demo", "--password", "pw", "--pricing", "M-8", "--image", "u", "--size-gib", "100"],
+        [
+            "--name",
+            "demo",
+            "--password",
+            "pw",
+            "--pricing",
+            "M-8",
+            "--image",
+            "u",
+            "--size-gib",
+            "100",
+        ],
         obj=app_obj,
     )
     assert result.exit_code != 0
@@ -210,12 +281,18 @@ def test_launch_rejects_non_vm_pricing(mock_client, app_obj, isolated_config_pat
     result = CliRunner().invoke(
         vm_launch,
         [
-            "--name", "demo",
-            "--password", "pw",
-            "--pricing", "block",
-            "--image", "u",
-            "--size-gib", "100",
-            "--subnet", "s",
+            "--name",
+            "demo",
+            "--password",
+            "pw",
+            "--pricing",
+            "block",
+            "--image",
+            "u",
+            "--size-gib",
+            "100",
+            "--subnet",
+            "s",
         ],
         obj=app_obj,
     )

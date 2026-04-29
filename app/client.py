@@ -131,13 +131,17 @@ class ECIClient:
         return self.get("/user/organization/resource_usage")
 
     def list_regions(self, **filters) -> list[dict]:
-        return self._paginate("/user/region", self._filters(include_zone=False, **filters))
+        return self._paginate(
+            "/user/region", self._filters(include_zone=False, **filters)
+        )
 
     def get_region(self, region_id: str) -> dict:
         return self.get(f"/user/region/{region_id}")
 
     def list_zones(self, **filters) -> list[dict]:
-        return self._paginate("/user/infra/zone", self._filters(include_zone=False, **filters))
+        return self._paginate(
+            "/user/infra/zone", self._filters(include_zone=False, **filters)
+        )
 
     def get_zone(self, zone_id: str) -> dict:
         return self.get(f"/user/infra/zone/{zone_id}")
@@ -149,7 +153,9 @@ class ECIClient:
         return self.get(f"/user/infra/instance_type/{instance_type_id}")
 
     def list_images(self, **filters) -> list[dict]:
-        return self._paginate("/user/infra/block_storage_image", self._filters(**filters))
+        return self._paginate(
+            "/user/infra/block_storage_image", self._filters(**filters)
+        )
 
     def get_image(self, image_id: str) -> dict:
         return self.get(f"/user/infra/block_storage_image/{image_id}")
@@ -161,7 +167,10 @@ class ECIClient:
         return self.get(f"/user/pricing/{pricing_id}")
 
     def find_pricing(
-        self, name: str, pricing_type: str = "ondemand", resource_kind: str | None = None
+        self,
+        name: str,
+        pricing_type: str = "ondemand",
+        resource_kind: str | None = None,
     ) -> dict:
         exact = [
             p
@@ -184,7 +193,9 @@ class ECIClient:
         return exact[0]
 
     def list_vms(self, **filters) -> list[dict]:
-        return self._paginate("/user/resource/compute/virtual_machine", self._filters(**filters))
+        return self._paginate(
+            "/user/resource/compute/virtual_machine", self._filters(**filters)
+        )
 
     def get_vm(self, vm_id: str) -> dict:
         return self.get(f"/user/resource/compute/virtual_machine/{vm_id}")
@@ -229,7 +240,8 @@ class ECIClient:
         if "vm_id" in filters and "machine_id" not in filters:
             filters["machine_id"] = filters.pop("vm_id")
         return self._paginate(
-            "/user/resource/compute/virtual_machine_allocation", self._filters(**filters)
+            "/user/resource/compute/virtual_machine_allocation",
+            self._filters(**filters),
         )
 
     def get_allocation(self, alloc_id: str) -> dict:
@@ -242,10 +254,14 @@ class ECIClient:
         )
 
     def delete_allocation(self, alloc_id: str) -> dict:
-        return self.delete(f"/user/resource/compute/virtual_machine_allocation/{alloc_id}")
+        return self.delete(
+            f"/user/resource/compute/virtual_machine_allocation/{alloc_id}"
+        )
 
     def list_clusters(self, **filters) -> list[dict]:
-        return self._paginate("/user/resource/compute/virtual_cluster", self._filters(**filters))
+        return self._paginate(
+            "/user/resource/compute/virtual_cluster", self._filters(**filters)
+        )
 
     def get_cluster(self, cluster_id: str) -> dict:
         return self.get(f"/user/resource/compute/virtual_cluster/{cluster_id}")
@@ -270,38 +286,54 @@ class ECIClient:
         )
 
     def update_cluster(self, cluster_id: str, **fields) -> dict:
-        return self.patch(f"/user/resource/compute/virtual_cluster/{cluster_id}", fields)
+        return self.patch(
+            f"/user/resource/compute/virtual_cluster/{cluster_id}", fields
+        )
 
     def delete_cluster(self, cluster_id: str) -> dict:
         return self.delete(f"/user/resource/compute/virtual_cluster/{cluster_id}")
 
     def list_cluster_allocations(self, **filters) -> list[dict]:
         return self._paginate(
-            "/user/resource/compute/virtual_cluster_allocation", self._filters(**filters)
+            "/user/resource/compute/virtual_cluster_allocation",
+            self._filters(**filters),
         )
 
     def get_cluster_allocation(self, alloc_id: str) -> dict:
         return self.get(f"/user/resource/compute/virtual_cluster_allocation/{alloc_id}")
 
-    def create_cluster_allocation(self, cluster_id: str, tags: dict | None = None) -> dict:
+    def create_cluster_allocation(
+        self, cluster_id: str, tags: dict | None = None
+    ) -> dict:
         return self.post(
             "/user/resource/compute/virtual_cluster_allocation",
             {**self._scope(), "cluster_id": cluster_id, "tags": tags or {}},
         )
 
     def delete_cluster_allocation(self, alloc_id: str) -> dict:
-        return self.delete(f"/user/resource/compute/virtual_cluster_allocation/{alloc_id}")
+        return self.delete(
+            f"/user/resource/compute/virtual_cluster_allocation/{alloc_id}"
+        )
 
     def list_vnets(self, **filters) -> list[dict]:
-        return self._paginate("/user/resource/network/virtual_network", self._filters(**filters))
+        return self._paginate(
+            "/user/resource/network/virtual_network", self._filters(**filters)
+        )
 
     def get_vnet(self, vnet_id: str) -> dict:
         return self.get(f"/user/resource/network/virtual_network/{vnet_id}")
 
-    def create_vnet(self, *, name: str, network_cidr: str, tags: dict | None = None) -> dict:
+    def create_vnet(
+        self, *, name: str, network_cidr: str, tags: dict | None = None
+    ) -> dict:
         return self.post(
             "/user/resource/network/virtual_network",
-            {**self._scope(), "name": name, "network_cidr": network_cidr, "tags": tags or {}},
+            {
+                **self._scope(),
+                "name": name,
+                "network_cidr": network_cidr,
+                "tags": tags or {},
+            },
         )
 
     def update_vnet(self, vnet_id: str, **fields) -> dict:
@@ -384,13 +416,20 @@ class ECIClient:
         return self.delete(f"/user/resource/network/network_interface/{nic_id}")
 
     def list_public_ips(self, **filters) -> list[dict]:
-        return self._paginate("/user/resource/network/public_ip", self._filters(**filters))
+        return self._paginate(
+            "/user/resource/network/public_ip", self._filters(**filters)
+        )
 
     def get_public_ip(self, ip_id: str) -> dict:
         return self.get(f"/user/resource/network/public_ip/{ip_id}")
 
     def create_public_ip(
-        self, *, pricing_id: str, dr: bool = False, ddos: bool = True, tags: dict | None = None
+        self,
+        *,
+        pricing_id: str,
+        dr: bool = False,
+        ddos: bool = True,
+        tags: dict | None = None,
     ) -> dict:
         return self.post(
             "/user/resource/network/public_ip",
@@ -432,7 +471,9 @@ class ECIClient:
         return self.delete(f"/user/resource/network/vpn/{vpn_id}")
 
     def list_block_storages(self, **filters) -> list[dict]:
-        return self._paginate("/user/resource/storage/block_storage", self._filters(**filters))
+        return self._paginate(
+            "/user/resource/storage/block_storage", self._filters(**filters)
+        )
 
     def get_block_storage(self, bs_id: str) -> dict:
         return self.get(f"/user/resource/storage/block_storage/{bs_id}")
@@ -493,18 +534,25 @@ class ECIClient:
         )
 
     def update_block_snapshot(self, snapshot_id: str, **fields) -> dict:
-        return self.patch(f"/user/resource/storage/block_storage/snapshot/{snapshot_id}", fields)
+        return self.patch(
+            f"/user/resource/storage/block_storage/snapshot/{snapshot_id}", fields
+        )
 
     def delete_block_snapshot(self, snapshot_id: str) -> dict:
-        return self.delete(f"/user/resource/storage/block_storage/snapshot/{snapshot_id}")
+        return self.delete(
+            f"/user/resource/storage/block_storage/snapshot/{snapshot_id}"
+        )
 
     def list_snapshot_schedulers(self, **filters) -> list[dict]:
         return self._paginate(
-            "/user/resource/storage/block_storage/snapshot_scheduler", self._filters(**filters)
+            "/user/resource/storage/block_storage/snapshot_scheduler",
+            self._filters(**filters),
         )
 
     def get_snapshot_scheduler(self, sched_id: str) -> dict:
-        return self.get(f"/user/resource/storage/block_storage/snapshot_scheduler/{sched_id}")
+        return self.get(
+            f"/user/resource/storage/block_storage/snapshot_scheduler/{sched_id}"
+        )
 
     def create_snapshot_scheduler(
         self,
@@ -529,14 +577,19 @@ class ECIClient:
 
     def update_snapshot_scheduler(self, sched_id: str, **fields) -> dict:
         return self.patch(
-            f"/user/resource/storage/block_storage/snapshot_scheduler/{sched_id}", fields
+            f"/user/resource/storage/block_storage/snapshot_scheduler/{sched_id}",
+            fields,
         )
 
     def delete_snapshot_scheduler(self, sched_id: str) -> dict:
-        return self.delete(f"/user/resource/storage/block_storage/snapshot_scheduler/{sched_id}")
+        return self.delete(
+            f"/user/resource/storage/block_storage/snapshot_scheduler/{sched_id}"
+        )
 
     def list_object_storages(self, **filters) -> list[dict]:
-        return self._paginate("/user/resource/storage/object_storage", self._filters(**filters))
+        return self._paginate(
+            "/user/resource/storage/object_storage", self._filters(**filters)
+        )
 
     def get_object_storage(self, os_id: str) -> dict:
         return self.get(f"/user/resource/storage/object_storage/{os_id}")
@@ -570,7 +623,9 @@ class ECIClient:
         )
 
     def update_object_user(self, user_id: str, **fields) -> dict:
-        return self.patch(f"/user/resource/storage/object_storage/user/{user_id}", fields)
+        return self.patch(
+            f"/user/resource/storage/object_storage/user/{user_id}", fields
+        )
 
     def delete_object_user(self, user_id: str) -> dict:
         return self.delete(f"/user/resource/storage/object_storage/user/{user_id}")
@@ -603,10 +658,14 @@ class ECIClient:
         )
 
     def update_object_grant(self, grant_id: str, **fields) -> dict:
-        return self.patch(f"/user/resource/storage/object_storage/user_grant/{grant_id}", fields)
+        return self.patch(
+            f"/user/resource/storage/object_storage/user_grant/{grant_id}", fields
+        )
 
     def delete_object_grant(self, grant_id: str) -> dict:
-        return self.delete(f"/user/resource/storage/object_storage/user_grant/{grant_id}")
+        return self.delete(
+            f"/user/resource/storage/object_storage/user_grant/{grant_id}"
+        )
 
     def list_pfs(self, **filters) -> list[dict]:
         return self._paginate(
@@ -623,7 +682,9 @@ class ECIClient:
         )
 
     def update_pfs(self, pfs_id: str, **fields) -> dict:
-        return self.patch(f"/user/resource/storage/parallel_file_system/{pfs_id}", fields)
+        return self.patch(
+            f"/user/resource/storage/parallel_file_system/{pfs_id}", fields
+        )
 
     def delete_pfs(self, pfs_id: str) -> dict:
         return self.delete(f"/user/resource/storage/parallel_file_system/{pfs_id}")
@@ -632,11 +693,14 @@ class ECIClient:
         if "pfs_id" in filters and "parallel_file_system_id" not in filters:
             filters["parallel_file_system_id"] = filters.pop("pfs_id")
         return self._paginate(
-            "/user/resource/storage/parallel_file_system/member", self._filters(**filters)
+            "/user/resource/storage/parallel_file_system/member",
+            self._filters(**filters),
         )
 
     def get_pfs_member(self, member_id: str) -> dict:
-        return self.get(f"/user/resource/storage/parallel_file_system/member/{member_id}")
+        return self.get(
+            f"/user/resource/storage/parallel_file_system/member/{member_id}"
+        )
 
     def create_pfs_member(
         self, *, pfs_id: str, machine_id: str, tags: dict | None = None
@@ -652,7 +716,9 @@ class ECIClient:
         )
 
     def delete_pfs_member(self, member_id: str) -> dict:
-        return self.delete(f"/user/resource/storage/parallel_file_system/member/{member_id}")
+        return self.delete(
+            f"/user/resource/storage/parallel_file_system/member/{member_id}"
+        )
 
     def wait_for_status(
         self,

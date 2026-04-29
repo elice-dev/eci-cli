@@ -20,7 +20,14 @@ register_list_get(
     nic,
     list_fn="list_nics",
     get_fn="get_nic",
-    default_columns=("name", "ip", "mac", "attached_subnet", "attached_machine", "status"),
+    default_columns=(
+        "name",
+        "ip",
+        "mac",
+        "attached_subnet",
+        "attached_machine",
+        "status",
+    ),
     filters=[
         FilterSpec("ids"),
         FilterSpec("created_ge"),

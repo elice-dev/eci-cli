@@ -30,9 +30,7 @@ def test_pricing_filter_resource_ids_resolved(mock_client, app_obj):
         {"id": "it-uuid2", "name": "M-16"},
     ]
     mock_client.list_pricings.return_value = []
-    result = CliRunner().invoke(
-        pricing, ["--resource-ids", "M-8,M-16"], obj=app_obj
-    )
+    result = CliRunner().invoke(pricing, ["--resource-ids", "M-8,M-16"], obj=app_obj)
     assert result.exit_code == 0, result.output
     kwargs = mock_client.list_pricings.call_args.kwargs
     assert kwargs["resource_ids"] == "it-uuid,it-uuid2"

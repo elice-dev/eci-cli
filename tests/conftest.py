@@ -36,10 +36,14 @@ def app_obj(mock_client: MagicMock) -> AppContext:
     return AppContext(client=mock_client)
 
 
-def make_response(status: int = 200, json_body: Any = None, content: bytes | None = None) -> MagicMock:
+def make_response(
+    status: int = 200, json_body: Any = None, content: bytes | None = None
+) -> MagicMock:
     resp = MagicMock()
     resp.status_code = status
-    resp.content = content if content is not None else (b"{}" if json_body is None else b"x")
+    resp.content = (
+        content if content is not None else (b"{}" if json_body is None else b"x")
+    )
     resp.json.return_value = json_body if json_body is not None else {}
     resp.text = "" if json_body is None else str(json_body)
     return resp

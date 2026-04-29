@@ -73,7 +73,9 @@ def test_resolve_row_for_json_strips_id_suffix():
 def test_render_list_json_with_query(capsys):
     resolver = MagicMock(spec=NameResolver)
     items = [{"name": "vm1", "status": "ready"}, {"name": "vm2", "status": "pending"}]
-    render_list(items, default_columns=["name"], fmt="json", query="name", resolver=resolver)
+    render_list(
+        items, default_columns=["name"], fmt="json", query="name", resolver=resolver
+    )
     out = capsys.readouterr().out
     assert json.loads(out) == [{"name": "vm1"}, {"name": "vm2"}]
 
@@ -82,7 +84,11 @@ def test_render_list_csv(capsys):
     resolver = MagicMock(spec=NameResolver)
     items = [{"name": "vm1", "status": "ready"}]
     render_list(
-        items, default_columns=["name", "status"], fmt="csv", query=None, resolver=resolver
+        items,
+        default_columns=["name", "status"],
+        fmt="csv",
+        query=None,
+        resolver=resolver,
     )
     out = capsys.readouterr().out.strip().splitlines()
     assert out[0] == "name,status"

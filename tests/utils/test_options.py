@@ -18,7 +18,12 @@ def test_filter_options_attaches_click_options():
     runner = CliRunner()
 
     @click.command()
-    @filter_options([FilterSpec("name_ilike", help="match name"), FilterSpec("activated", type="bool")])
+    @filter_options(
+        [
+            FilterSpec("name_ilike", help="match name"),
+            FilterSpec("activated", type="bool"),
+        ]
+    )
     def cmd(name_ilike, activated):
         click.echo(f"{name_ilike}:{activated}")
 

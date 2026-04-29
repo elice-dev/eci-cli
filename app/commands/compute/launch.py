@@ -15,9 +15,13 @@ def _well_known_pricing_id(app: AppContext, *, kind: str, name: str) -> str:
 
 
 @click.command("launch", help="Launch a VM end-to-end (VM + disk + NIC + IP + start).")
-@click.option("--name", required=True, help="VM name (also used as prefix for disk/NIC).")
+@click.option(
+    "--name", required=True, help="VM name (also used as prefix for disk/NIC)."
+)
 @click.option("--password", default=None, help="OS root password.")
-@click.option("--username", default=None, help="OS first user (default: ubuntu or from spec).")
+@click.option(
+    "--username", default=None, help="OS first user (default: ubuntu or from spec)."
+)
 @click.option(
     "--pricing",
     default=None,
@@ -37,9 +41,16 @@ def _well_known_pricing_id(app: AppContext, *, kind: str, name: str) -> str:
     default=None,
     help="Use a saved spec from vm_defaults (default name = `default`).",
 )
-@click.option("--block-storage", "block_storage", default=None, help="Reuse existing block storage.")
+@click.option(
+    "--block-storage",
+    "block_storage",
+    default=None,
+    help="Reuse existing block storage.",
+)
 @click.option("--nic", "nic_arg", default=None, help="Reuse existing NIC.")
-@click.option("--public-ip", "public_ip", default=None, help="Reuse existing public IP.")
+@click.option(
+    "--public-ip", "public_ip", default=None, help="Reuse existing public IP."
+)
 @click.option("--no-network", is_flag=True, help="Skip NIC + public IP.")
 @click.option("--no-public-ip", is_flag=True, help="Create NIC but skip public IP.")
 @click.option("--no-start", is_flag=True, help="Skip the boot step.")
@@ -89,16 +100,20 @@ def vm_launch(
 
     if not pricing:
         raise click.ClickException("--pricing is required")
-    
+
     if not block_storage:
         if size_gib is None:
-            raise click.ClickException("--size-gib is required (or use --block-storage)")
-        
+            raise click.ClickException(
+                "--size-gib is required (or use --block-storage)"
+            )
+
         if not image:
             raise click.ClickException("--image is required (or use --block-storage)")
-        
+
     if not no_network and not nic_arg and not subnet:
-        raise click.ClickException("--subnet is required (or pass --nic / --no-network)")
+        raise click.ClickException(
+            "--subnet is required (or pass --nic / --no-network)"
+        )
 
     out: dict[str, Any] = {}
 
@@ -112,7 +127,7 @@ def vm_launch(
             f"pricing {pricing!r} is not a VM pricing "
             f"(resource_kind={vm_pricing_obj.get('resource_kind')!r})"
         )
-    
+
     instance_type_id = vm_pricing_obj["resource_id"]
     out["resolved"] = {
         "instance_type_id": instance_type_id,
@@ -136,11 +151,15 @@ def vm_launch(
         bs_id = app.resolver.resolve("list_block_storages", block_storage)
     else:
         if size_gib is None:
-            raise click.ClickException("--size-gib is required (or use --block-storage)")
+            raise click.ClickException(
+                "--size-gib is required (or use --block-storage)"
+            )
         bs = app.client.create_block_storage(
             name=f"{name}-disk",
             size_gib=size_gib,
-            pricing_id=_well_known_pricing_id(app, kind="block_storage", name="Block Storage"),
+            pricing_id=_well_known_pricing_id(
+                app, kind="block_storage", name="Block Storage"
+            ),
             image_id=app.resolver.resolve("list_images", image) if image else None,
             dr=dr,
         )
@@ -157,8 +176,10 @@ def vm_launch(
             nic_id = app.resolver.resolve("list_nics", nic_arg)
         else:
             if subnet is None:
-                raise click.ClickException("--subnet is required (or pass --nic / --no-network)")
-            
+                raise click.ClickException(
+                    "--subnet is required (or pass --nic / --no-network)"
+                )
+
             nic = app.client.create_nic(
                 name=f"{name}-nic",
                 attached_subnet_id=app.resolver.resolve("list_subnets", subnet),
@@ -168,13 +189,14 @@ def vm_launch(
             nic_id = nic["id"]
         out["nic_attach"] = app.client.attach_nic(nic_id, vm_id)
 
-
         if not no_public_ip:
             if public_ip:
                 pip_id = app.resolver.resolve("list_public_ips", public_ip)
             else:
                 pip = app.client.create_public_ip(
-                    pricing_id=_well_known_pricing_id(app, kind="public_ip", name="Public IP"),
+                    pricing_id=_well_known_pricing_id(
+                        app, kind="public_ip", name="Public IP"
+                    ),
                     dr=dr,
                 )
                 out["public_ip"] = pip

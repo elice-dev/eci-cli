@@ -27,7 +27,15 @@ def test_cluster_create_custom_fabric(mock_client, app_obj):
 
     CliRunner().invoke(
         cluster,
-        ["create", "--name", "demo", "--instance-type", "M-8", "--fabric-type", "ethernet"],
+        [
+            "create",
+            "--name",
+            "demo",
+            "--instance-type",
+            "M-8",
+            "--fabric-type",
+            "ethernet",
+        ],
         obj=app_obj,
     )
     assert mock_client.create_cluster.call_args.kwargs["fabric_type"] == "ethernet"

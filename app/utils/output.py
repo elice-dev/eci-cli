@@ -62,13 +62,13 @@ def _columns_from_query(query: str) -> list[str]:
 def _stringify(v: Any) -> str:
     if v is None:
         return ""
-    
+
     if isinstance(v, bool):
         return "true" if v else "false"
-    
+
     if isinstance(v, (dict, list)):
         return json.dumps(v, ensure_ascii=False)
-    
+
     return str(v)
 
 
@@ -116,7 +116,7 @@ def render_list(
             else [_resolve_row_for_json(it, resolver) for it in items]
         )
         return
-    
+
     rows = [_project_row(it, cols, resolver) for it in items]
 
     if fmt == "csv":
@@ -140,13 +140,12 @@ def render_one(
             else _resolve_row_for_json(item, resolver)
         )
         return
-    
+
     row = _project_row(item, cols, resolver)
 
     if fmt == "csv":
         _emit_csv([row], cols)
     else:
-    
         table = Table(show_header=False)
         table.add_column("field", style="bold")
         table.add_column("value", overflow="fold")
@@ -159,5 +158,5 @@ def emit_action_result(item: Any) -> None:
     if item is None:
         click.echo("ok")
         return
-    
+
     _emit_json(item)

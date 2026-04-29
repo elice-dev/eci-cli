@@ -46,7 +46,9 @@ register_list_get(
     help="VM pricing name (e.g. 'M-8'). Determines the instance type.",
 )
 @click.option("--username", required=True)
-@click.option("--password", required=True, prompt=True, hide_input=True, confirmation_prompt=False)
+@click.option(
+    "--password", required=True, prompt=True, hide_input=True, confirmation_prompt=False
+)
 @click.option("--always-on/--no-always-on", default=False)
 @click.option("--dr/--no-dr", default=False)
 @click.option("--on-init-script", default="")
@@ -64,7 +66,9 @@ def vm_create(
     pricing_id = app.resolver.resolve("list_pricings", pricing)
     pricing_obj = app.client.get_pricing(pricing_id)
 
-    if pricing_obj.get("resource_kind") != "vm_allocation" or not pricing_obj.get("resource_id"):
+    if pricing_obj.get("resource_kind") != "vm_allocation" or not pricing_obj.get(
+        "resource_id"
+    ):
         raise click.ClickException(
             f"pricing {pricing!r} is not a VM pricing "
             f"(resource_kind={pricing_obj.get('resource_kind')!r})"
@@ -105,7 +109,9 @@ def vm_update(
         fields["name"] = name
 
     if instance_type is not None:
-        fields["instance_type_id"] = app.resolver.resolve("list_instance_types", instance_type)
+        fields["instance_type_id"] = app.resolver.resolve(
+            "list_instance_types", instance_type
+        )
 
     if pricing is not None:
         fields["pricing_id"] = app.resolver.resolve("list_pricings", pricing)
@@ -121,7 +127,9 @@ def vm_update(
     )
 
 
-@vm.command("delete", help="Delete a VM (cascade-deletes attached disks/NICs/IPs by default).")
+@vm.command(
+    "delete", help="Delete a VM (cascade-deletes attached disks/NICs/IPs by default)."
+)
 @click.argument("name_or_id")
 @click.option("--cascade/--no-cascade", default=True, show_default=True)
 @click.option("-y", "--yes", is_flag=True, help="Skip confirmation.")

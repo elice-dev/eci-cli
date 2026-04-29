@@ -72,7 +72,7 @@ def vnet_update(
 @click.pass_obj
 def vnet_delete(app: AppContext, name_or_id: str, yes: bool) -> None:
     vid = app.resolver.resolve("list_vnets", name_or_id)
-    
+
     if not yes:
         click.confirm(f"Delete vnet {name_or_id}?", abort=True)
 

@@ -20,7 +20,7 @@ def output_options(fn: Callable) -> Callable:
         default=None,
         help="Comma-separated list of columns to display (overrides defaults).",
     )(fn)
-    
+
     return fn
 
 

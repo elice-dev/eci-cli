@@ -65,7 +65,7 @@ class NameResolver:
     def resolve(self, list_fn_name: str, name_or_id: str) -> str:
         if is_uuid(name_or_id):
             return name_or_id
-        
+
         items = getattr(self.client, list_fn_name)(name_ilike=name_or_id)
         exact = [i for i in items if i.get("name") == name_or_id]
 
@@ -73,15 +73,13 @@ class NameResolver:
             exact = [i for i in items if i.get("ip") == name_or_id]
 
         if not exact:
-            raise click.ClickException(
-                f"{list_fn_name}: no item named {name_or_id!r}"
-            )
-        
+            raise click.ClickException(f"{list_fn_name}: no item named {name_or_id!r}")
+
         if len(exact) > 1:
             raise click.ClickException(
                 f"{list_fn_name}: multiple items named {name_or_id!r}; pass UUID"
             )
-        
+
         return exact[0]["id"]
 
 
@@ -95,7 +93,6 @@ def is_uuid(s: str) -> bool:
 
 @dataclass
 class AppContext:
-
     client: ECIClient
     resolver: NameResolver = field(init=False)
 

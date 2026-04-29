@@ -14,7 +14,13 @@ register_list_get(
     pricing,
     list_fn="list_pricings",
     get_fn="get_pricing",
-    default_columns=("name", "resource_kind", "pricing_type", "price_per_hour", "activated"),
+    default_columns=(
+        "name",
+        "resource_kind",
+        "pricing_type",
+        "price_per_hour",
+        "activated",
+    ),
     filters=[
         FilterSpec("ids"),
         FilterSpec("organization_id"),

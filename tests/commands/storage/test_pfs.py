@@ -23,9 +23,7 @@ def test_pfs_update_no_fields(mock_client, app_obj):
 def test_pfs_update_partial(mock_client, app_obj):
     mock_client.list_pfs.return_value = [{"id": "pf1", "name": "p"}]
     mock_client.update_pfs.return_value = {"id": "pf1"}
-    result = CliRunner().invoke(
-        pfs, ["update", "p", "--name", "new"], obj=app_obj
-    )
+    result = CliRunner().invoke(pfs, ["update", "p", "--name", "new"], obj=app_obj)
     assert result.exit_code == 0
     assert mock_client.update_pfs.call_args.kwargs == {"name": "new"}
 
@@ -53,8 +51,6 @@ def test_pfs_member_create(mock_client, app_obj):
 
 def test_pfs_member_delete_uses_raw_id(mock_client, app_obj):
     mock_client.delete_pfs_member.return_value = {"id": "m1"}
-    result = CliRunner().invoke(
-        pfs, ["member", "delete", "m-uuid", "-y"], obj=app_obj
-    )
+    result = CliRunner().invoke(pfs, ["member", "delete", "m-uuid", "-y"], obj=app_obj)
     assert result.exit_code == 0
     mock_client.delete_pfs_member.assert_called_once_with("m-uuid")

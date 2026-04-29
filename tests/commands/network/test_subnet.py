@@ -23,9 +23,7 @@ def test_subnet_create_resolves_vnet_name(mock_client, app_obj):
 def test_subnet_update_renames(mock_client, app_obj):
     mock_client.list_subnets.return_value = [{"id": "s1", "name": "s"}]
     mock_client.update_subnet.return_value = {"id": "s1"}
-    result = CliRunner().invoke(
-        subnet, ["update", "s", "--name", "new"], obj=app_obj
-    )
+    result = CliRunner().invoke(subnet, ["update", "s", "--name", "new"], obj=app_obj)
     assert result.exit_code == 0
     assert mock_client.update_subnet.call_args.kwargs["name"] == "new"
 

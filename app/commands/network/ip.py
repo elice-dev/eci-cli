@@ -52,7 +52,9 @@ def ip_create(app: AppContext, pricing: str, dr: bool, ddos: bool) -> None:
 
 @ip.command("update")
 @click.argument("name_or_id")
-@click.option("--tag", "tags", multiple=True, metavar="K=V", help="Tag k=v pairs (repeatable).")
+@click.option(
+    "--tag", "tags", multiple=True, metavar="K=V", help="Tag k=v pairs (repeatable)."
+)
 @click.pass_obj
 def ip_update(app: AppContext, name_or_id: str, tags: tuple[str, ...]) -> None:
     if not tags:

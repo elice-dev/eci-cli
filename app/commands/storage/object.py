@@ -169,7 +169,9 @@ register_list_get(
     required=True,
 )
 @click.pass_obj
-def grant_create(app: AppContext, bucket_arg: str, user_arg: str, permission: str) -> None:
+def grant_create(
+    app: AppContext, bucket_arg: str, user_arg: str, permission: str
+) -> None:
     emit_action_result(
         app.client.create_object_grant(
             object_storage_id=app.resolver.resolve("list_object_storages", bucket_arg),
@@ -198,5 +200,5 @@ def grant_update(app: AppContext, grant_id: str, permission: str) -> None:
 def grant_delete(app: AppContext, grant_id: str, yes: bool) -> None:
     if not yes:
         click.confirm(f"Delete grant {grant_id}?", abort=True)
-        
+
     emit_action_result(app.client.delete_object_grant(grant_id))

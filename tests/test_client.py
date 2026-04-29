@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import json
-from unittest.mock import MagicMock
 
 import pytest
 
@@ -227,4 +226,6 @@ def test_wait_for_status_times_out(monkeypatch):
     cfg = Config(api_endpoint="https://e", api_token="t")
     c = ECIClient(cfg)
     with pytest.raises(TimeoutError):
-        c.wait_for_status(lambda: {"status": "pending"}, {"ready"}, timeout=1, interval=0)
+        c.wait_for_status(
+            lambda: {"status": "pending"}, {"ready"}, timeout=1, interval=0
+        )

@@ -23,9 +23,7 @@ def test_nic_attach(mock_client, app_obj):
     mock_client.list_vms.return_value = [{"id": "vm-1", "name": "vm"}]
     mock_client.attach_nic.return_value = {"ok": True}
 
-    result = CliRunner().invoke(
-        nic, ["attach", "n", "--vm", "vm"], obj=app_obj
-    )
+    result = CliRunner().invoke(nic, ["attach", "n", "--vm", "vm"], obj=app_obj)
     assert result.exit_code == 0
     mock_client.attach_nic.assert_called_once_with("nic-1", "vm-1")
 

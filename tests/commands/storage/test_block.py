@@ -14,10 +14,14 @@ def test_block_create_resolves_pricing_and_image(mock_client, app_obj):
         block,
         [
             "create",
-            "--name", "data",
-            "--size-gib", "100",
-            "--pricing", "block-pricing",
-            "--image", "ubuntu",
+            "--name",
+            "data",
+            "--size-gib",
+            "100",
+            "--pricing",
+            "block-pricing",
+            "--image",
+            "ubuntu",
         ],
         obj=app_obj,
     )
@@ -35,11 +39,16 @@ def test_block_create_image_and_snapshot_mutually_exclusive(mock_client, app_obj
         block,
         [
             "create",
-            "--name", "d",
-            "--size-gib", "10",
-            "--pricing", "p",
-            "--image", "i",
-            "--snapshot", "s",
+            "--name",
+            "d",
+            "--size-gib",
+            "10",
+            "--pricing",
+            "p",
+            "--image",
+            "i",
+            "--snapshot",
+            "s",
         ],
         obj=app_obj,
     )
@@ -129,11 +138,16 @@ def test_block_scheduler_create(mock_client, app_obj):
     result = CliRunner().invoke(
         block,
         [
-            "scheduler", "create",
-            "--name", "daily",
-            "--block", "data",
-            "--cron", "0 0 * * *",
-            "--max-snapshots", "7",
+            "scheduler",
+            "create",
+            "--name",
+            "daily",
+            "--block",
+            "data",
+            "--cron",
+            "0 0 * * *",
+            "--max-snapshots",
+            "7",
         ],
         obj=app_obj,
     )
@@ -149,9 +163,7 @@ def test_block_scheduler_create(mock_client, app_obj):
 
 def test_block_scheduler_update_no_fields_errors(mock_client, app_obj):
     mock_client.list_snapshot_schedulers.return_value = [{"id": "s1", "name": "daily"}]
-    result = CliRunner().invoke(
-        block, ["scheduler", "update", "daily"], obj=app_obj
-    )
+    result = CliRunner().invoke(block, ["scheduler", "update", "daily"], obj=app_obj)
     assert result.exit_code != 0
     assert "nothing to update" in result.output
 

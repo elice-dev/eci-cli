@@ -42,7 +42,7 @@ def config_set(path: str, value: str) -> None:
         cfg.set_path(path, parsed)
     except KeyError as e:
         raise click.ClickException(str(e).strip("'"))
-    
+
     cfg.save()
     click.echo(f"set {path}")
 
@@ -88,7 +88,7 @@ def config_delete_vm_spec(name: str) -> None:
 
     if name not in (cfg.vm_defaults or {}):
         raise click.ClickException(f"no spec named {name!r}")
-    
+
     del cfg.vm_defaults[name]
 
     cfg.save()

@@ -68,9 +68,7 @@ def test_config_show_redacts_token(isolated_config_path):
 
 def test_config_list_vm_specs_lists_keys(isolated_config_path):
     _, path = isolated_config_path
-    path.write_text(
-        yaml.safe_dump({"vm_defaults": {"small": {}, "large": {}}})
-    )
+    path.write_text(yaml.safe_dump({"vm_defaults": {"small": {}, "large": {}}}))
     runner = CliRunner()
     result = runner.invoke(config_list_vm_specs)
     assert result.exit_code == 0

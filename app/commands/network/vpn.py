@@ -60,5 +60,5 @@ def vpn_delete(app: AppContext, name_or_id: str, yes: bool) -> None:
 
     if not yes:
         click.confirm(f"Delete VPN {name_or_id}?", abort=True)
-        
+
     emit_action_result(app.client.delete_vpn(vpn_id))

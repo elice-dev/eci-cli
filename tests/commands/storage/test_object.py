@@ -68,10 +68,15 @@ def test_object_grant_create(mock_client, app_obj):
     result = CliRunner().invoke(
         obj,
         [
-            "user", "grant", "create",
-            "--bucket", "bucket",
-            "--user", "alice",
-            "--permission", "read_write",
+            "user",
+            "grant",
+            "create",
+            "--bucket",
+            "bucket",
+            "--user",
+            "alice",
+            "--permission",
+            "read_write",
         ],
         obj=app_obj,
     )
@@ -88,10 +93,15 @@ def test_object_grant_create_invalid_permission(mock_client, app_obj):
     result = CliRunner().invoke(
         obj,
         [
-            "user", "grant", "create",
-            "--bucket", "b",
-            "--user", "u",
-            "--permission", "admin",
+            "user",
+            "grant",
+            "create",
+            "--bucket",
+            "b",
+            "--user",
+            "u",
+            "--permission",
+            "admin",
         ],
         obj=app_obj,
     )

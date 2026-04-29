@@ -34,9 +34,7 @@ def test_ip_update_parses_tags(mock_client, app_obj):
 
 def test_ip_update_invalid_tag_format(mock_client, app_obj):
     mock_client.list_public_ips.return_value = [{"id": "ip-1", "ip": "1.2.3.4"}]
-    result = CliRunner().invoke(
-        ip, ["update", "1.2.3.4", "--tag", "bad"], obj=app_obj
-    )
+    result = CliRunner().invoke(ip, ["update", "1.2.3.4", "--tag", "bad"], obj=app_obj)
     assert result.exit_code != 0
     assert "invalid --tag" in result.output
 
@@ -53,9 +51,7 @@ def test_ip_attach(mock_client, app_obj):
     mock_client.list_nics.return_value = [{"id": "nic-1", "name": "n"}]
     mock_client.attach_public_ip.return_value = {"ok": True}
 
-    result = CliRunner().invoke(
-        ip, ["attach", "1.2.3.4", "--nic", "n"], obj=app_obj
-    )
+    result = CliRunner().invoke(ip, ["attach", "1.2.3.4", "--nic", "n"], obj=app_obj)
     assert result.exit_code == 0, result.output
     mock_client.attach_public_ip.assert_called_once_with("ip-1", "nic-1")
 

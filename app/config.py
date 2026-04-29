@@ -8,7 +8,9 @@ from typing import Any
 import yaml
 
 DEFAULT_ENDPOINT = "https://portal.elice.cloud/api"
-CONFIG_PATH = Path(os.environ.get("ECI_CONFIG", str(Path.home() / ".eci" / "config.yaml")))
+CONFIG_PATH = Path(
+    os.environ.get("ECI_CONFIG", str(Path.home() / ".eci" / "config.yaml"))
+)
 
 
 @dataclass
@@ -63,14 +65,14 @@ class Config:
         if parts[0] in {"api_endpoint", "api_token", "zone_id"} and len(parts) == 1:
             setattr(self, parts[0], value)
             return
-        
+
         if parts[0] == "vm_defaults":
             node = self.vm_defaults
-            
+
             for p in parts[1:-1]:
                 node = node.setdefault(p, {})
             node[parts[-1]] = value
 
             return
-        
+
         raise KeyError(f"unsupported config path: {dotted}")

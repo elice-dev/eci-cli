@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import json
 from unittest.mock import MagicMock
 
 from click.testing import CliRunner
@@ -15,9 +14,7 @@ def _app(client: MagicMock) -> AppContext:
 
 def test_vm_create_resolves_pricing_and_posts():
     client = MagicMock()
-    client.list_pricings.return_value = [
-        {"id": "pricing-uuid", "name": "M-8"}
-    ]
+    client.list_pricings.return_value = [{"id": "pricing-uuid", "name": "M-8"}]
     client.get_pricing.return_value = {
         "id": "pricing-uuid",
         "name": "M-8",
@@ -31,10 +28,14 @@ def test_vm_create_resolves_pricing_and_posts():
         vm,
         [
             "create",
-            "--name", "demo",
-            "--pricing", "M-8",
-            "--username", "ubuntu",
-            "--password", "pw",
+            "--name",
+            "demo",
+            "--pricing",
+            "M-8",
+            "--username",
+            "ubuntu",
+            "--password",
+            "pw",
         ],
         obj=_app(client),
     )
@@ -62,10 +63,14 @@ def test_vm_create_rejects_non_vm_pricing():
         vm,
         [
             "create",
-            "--name", "demo",
-            "--pricing", "block-1",
-            "--username", "ubuntu",
-            "--password", "pw",
+            "--name",
+            "demo",
+            "--pricing",
+            "block-1",
+            "--username",
+            "ubuntu",
+            "--password",
+            "pw",
         ],
         obj=_app(client),
     )

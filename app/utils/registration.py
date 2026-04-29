@@ -20,24 +20,22 @@ def register_list_get(
     def _resolver_for(spec: FilterSpec) -> str | None:
         if spec.resolver:
             return spec.resolver
-        
+
         if spec.name in NameResolver.FIELD_MAP:
             return NameResolver.FIELD_MAP[spec.name]
-        
+
         if spec.name == "ids":
-            return list_fn 
-        
+            return list_fn
+
         if spec.name.endswith("_ids"):
-            singular = spec.name[:-1] 
+            singular = spec.name[:-1]
 
             if singular in NameResolver.FIELD_MAP:
                 return NameResolver.FIELD_MAP[singular]
-            
+
         return None
 
     resolver_for: dict[str, str | None] = {f.name: _resolver_for(f) for f in filters}
-
-
 
     for spec in filters:
         flag_basis = spec.name[:-3] if spec.name.endswith("_id") else spec.name
@@ -64,7 +62,6 @@ def register_list_get(
             )
         )
 
-
     group.params.append(
         click.Option(
             ["--format", "fmt"],
@@ -81,7 +78,6 @@ def register_list_get(
             help="Comma-separated list of columns to display (overrides defaults).",
         )
     )
-
 
     @click.pass_context
     def list_callback(ctx: click.Context, **kwargs: Any) -> None:
@@ -117,8 +113,6 @@ def register_list_get(
         )
 
     group.callback = list_callback
-
-
 
     @group.command("__get__", hidden=True)
     @click.argument("name_or_id")
@@ -161,5 +155,5 @@ def merged_filters(*sets: Sequence[FilterSpec]) -> list[FilterSpec]:
     for s in sets:
         for f in s:
             seen.setdefault(f.name, f)
-            
+
     return list(seen.values())

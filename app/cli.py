@@ -20,7 +20,12 @@ from .commands.zone import zone
 
 
 @click.group(help="ECI — Elice Cloud Infrastructure CLI.")
-@click.option("--zone", "zone_override", default=None, help="Override configured zone (UUID or name).")
+@click.option(
+    "--zone",
+    "zone_override",
+    default=None,
+    help="Override configured zone (UUID or name).",
+)
 @click.pass_context
 def cli(ctx: click.Context, zone_override: str | None) -> None:
     cfg = Config.load()
@@ -28,7 +33,7 @@ def cli(ctx: click.Context, zone_override: str | None) -> None:
     if ctx.invoked_subcommand in {"configure", "config"}:
         ctx.obj = None
         return
-    
+
     if not cfg.api_token:
         err_console.print(
             "[red]error[/red]: api_token is not set. Run `eci configure`."
@@ -44,7 +49,7 @@ def cli(ctx: click.Context, zone_override: str | None) -> None:
         except (ECIError, click.ClickException) as e:
             err_console.print(f"[red]zone override failed[/red]: {e}")
             sys.exit(2)
-            
+
     ctx.obj = AppContext(client=client)
 
 

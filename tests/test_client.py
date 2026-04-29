@@ -204,6 +204,71 @@ def test_list_allocations_renames_vm_id_to_machine_id(client, make_resp):
     assert "filter_vm_id" not in params
 
 
+def test_list_vms_replaces_allocated_status_with_allocation_status(client, make_resp):
+    vms = [
+        {"id": "v1", "name": "a", "status": "allocated"},
+        {"id": "v2", "name": "b", "status": "stopped"},
+        {"id": "v3", "name": "c", "status": "allocated"},
+    ]
+    allocs = [
+        {"id": "a1", "machine_id": "v1", "status": "started"},
+        {"id": "a2", "machine_id": "v3", "status": "taken"},
+        {"id": "a3", "machine_id": "v1", "status": "terminated"},
+    ]
+    client.session.request.side_effect = [
+        make_resp(200, json_body=vms),
+        make_resp(200, json_body=allocs),
+    ]
+    out = client.list_vms()
+    by_id = {vm["id"]: vm["status"] for vm in out}
+    assert by_id["v1"] == "started"
+    assert by_id["v2"] == "stopped"
+    assert by_id["v3"] == "taken"
+
+
+def test_list_vms_skips_allocation_lookup_when_none_allocated(client, make_resp):
+    vms = [{"id": "v1", "name": "a", "status": "stopped"}]
+    client.session.request.return_value = make_resp(200, json_body=vms)
+    out = client.list_vms()
+    assert out[0]["status"] == "stopped"
+    assert client.session.request.call_count == 1
+
+
+def test_list_vms_keeps_allocated_when_only_inactive_allocations(client, make_resp):
+    vms = [{"id": "v1", "name": "a", "status": "allocated"}]
+    allocs = [
+        {"id": "a1", "machine_id": "v1", "status": "queued"},
+        {"id": "a2", "machine_id": "v1", "status": "terminated"},
+    ]
+    client.session.request.side_effect = [
+        make_resp(200, json_body=vms),
+        make_resp(200, json_body=allocs),
+    ]
+    out = client.list_vms()
+    assert out[0]["status"] == "allocated"
+
+
+def test_get_vm_replaces_allocated_status(client, make_resp):
+    client.session.request.side_effect = [
+        make_resp(200, json_body={"id": "v1", "name": "a", "status": "allocated"}),
+        make_resp(
+            200,
+            json_body=[{"id": "a1", "machine_id": "v1", "status": "started"}],
+        ),
+    ]
+    out = client.get_vm("v1")
+    assert out["status"] == "started"
+
+
+def test_get_vm_skips_lookup_when_not_allocated(client, make_resp):
+    client.session.request.return_value = make_resp(
+        200, json_body={"id": "v1", "name": "a", "status": "stopped"}
+    )
+    out = client.get_vm("v1")
+    assert out["status"] == "stopped"
+    assert client.session.request.call_count == 1
+
+
 def test_wait_for_status_returns_when_target_reached(monkeypatch):
     from app import client as client_module
 

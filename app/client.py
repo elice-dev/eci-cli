@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import enum
 import json
 import time
 from typing import Any, Callable
@@ -10,6 +11,37 @@ import requests
 from .config import Config
 
 PAGE_SIZE = 100
+
+
+class VMAllocationStatus(enum.StrEnum):
+    """Mirror of ResourceVirtualMachineAllocationStatusEnum on the API side."""
+
+    queued = enum.auto()
+    assigned = enum.auto()
+    taken = enum.auto()
+    started = enum.auto()
+    terminating = enum.auto()
+    terminated = enum.auto()
+
+    @property
+    def is_active(self) -> bool:
+        return self in {
+            VMAllocationStatus.assigned,
+            VMAllocationStatus.taken,
+            VMAllocationStatus.started,
+            VMAllocationStatus.terminating,
+        }
+
+
+def is_active_allocation(allocation: dict) -> bool:
+    """True if the allocation dict represents a currently active allocation."""
+    raw = allocation.get("status")
+    if not isinstance(raw, str):
+        return False
+    try:
+        return VMAllocationStatus(raw).is_active
+    except ValueError:
+        return False
 
 
 def _ilike(s: str) -> str:
@@ -193,12 +225,38 @@ class ECIClient:
         return exact[0]
 
     def list_vms(self, **filters) -> list[dict]:
-        return self._paginate(
+        vms = self._paginate(
             "/user/resource/compute/virtual_machine", self._filters(**filters)
         )
+        self._patch_allocated_status(vms)
+        return vms
 
     def get_vm(self, vm_id: str) -> dict:
-        return self.get(f"/user/resource/compute/virtual_machine/{vm_id}")
+        vm = self.get(f"/user/resource/compute/virtual_machine/{vm_id}")
+        if vm.get("status") == "allocated":
+            for a in self.list_allocations(machine_id=vm_id):
+                if is_active_allocation(a):
+                    vm["status"] = a["status"]
+                    break
+        return vm
+
+    def _patch_allocated_status(self, vms: list[dict]) -> None:
+        if not any(vm.get("status") == "allocated" for vm in vms):
+            return
+
+        active: dict[str, str] = {}
+        for a in self.list_allocations():
+            if not is_active_allocation(a):
+                continue
+            mid = a.get("machine_id")
+            if mid and mid not in active:
+                active[mid] = a["status"]
+
+        for vm in vms:
+            if vm.get("status") == "allocated":
+                new_status = active.get(vm["id"])
+                if new_status:
+                    vm["status"] = new_status
 
     def create_vm(
         self,

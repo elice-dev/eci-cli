@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 from unittest.mock import MagicMock
 
 from click.testing import CliRunner
@@ -174,8 +175,8 @@ def test_vm_stop_deletes_active_allocation():
     client = MagicMock()
     client.list_vms.return_value = [{"id": "vm-1", "name": "demo"}]
     client.list_allocations.return_value = [
-        {"id": "a-old", "terminated": True},
-        {"id": "a-active", "terminated": False},
+        {"id": "a-old", "status": "terminated"},
+        {"id": "a-active", "status": "started"},
     ]
     client.delete_allocation.return_value = {"id": "a-active"}
 
@@ -194,3 +195,85 @@ def test_vm_stop_errors_when_no_allocations():
     result = runner.invoke(vm, ["stop", "demo"], obj=_app(client))
     assert result.exit_code != 0
     assert "no active allocation" in result.output
+
+
+def test_vm_stop_errors_when_only_inactive_allocations():
+    client = MagicMock()
+    client.list_vms.return_value = [{"id": "vm-1", "name": "demo"}]
+    client.list_allocations.return_value = [
+        {"id": "a1", "status": "terminated"},
+        {"id": "a2", "status": "queued"},
+    ]
+
+    runner = CliRunner()
+    result = runner.invoke(vm, ["stop", "demo"], obj=_app(client))
+    assert result.exit_code != 0
+    assert "already terminated" in result.output
+    client.delete_allocation.assert_not_called()
+
+
+def test_vm_get_json_includes_attached_resources():
+    client = MagicMock()
+    client.list_vms.return_value = [{"id": "vm-1", "name": "demo"}]
+    client.get_vm.return_value = {"id": "vm-1", "name": "demo", "status": "started"}
+    client.list_block_storages.return_value = [
+        {"id": "bs-1", "name": "demo-disk", "size_gib": 100, "status": "prepared"}
+    ]
+    client.list_nics.return_value = [
+        {"id": "nic-1", "name": "demo-nic", "ip": "10.0.0.5", "status": "ready"}
+    ]
+    client.list_public_ips.return_value = [
+        {"id": "ip-1", "ip": "1.2.3.4", "attached_network_interface_id": "nic-1"},
+        {"id": "ip-2", "ip": "5.6.7.8", "attached_network_interface_id": "other"},
+    ]
+
+    runner = CliRunner()
+    result = runner.invoke(vm, ["demo", "--format", "json"], obj=_app(client))
+    assert result.exit_code == 0, result.output
+
+    data = json.loads(result.output)
+    assert data["name"] == "demo"
+    assert [bs["name"] for bs in data["attached_block_storages"]] == ["demo-disk"]
+    assert [n["name"] for n in data["attached_nics"]] == ["demo-nic"]
+    assert [ip["ip"] for ip in data["attached_public_ips"]] == ["1.2.3.4"]
+
+    client.list_block_storages.assert_called_once_with(attached_machine_id="vm-1")
+    client.list_nics.assert_called_once_with(attached_machine_id="vm-1")
+
+
+def test_vm_get_table_renders_section_headers():
+    client = MagicMock()
+    client.list_vms.return_value = [{"id": "vm-1", "name": "demo"}]
+    client.get_vm.return_value = {"id": "vm-1", "name": "demo", "status": "started"}
+    client.list_block_storages.return_value = [
+        {"id": "bs-1", "name": "demo-disk", "size_gib": 100, "status": "prepared"}
+    ]
+    client.list_nics.return_value = [
+        {"id": "nic-1", "name": "demo-nic", "ip": "10.0.0.5"}
+    ]
+    client.list_public_ips.return_value = [
+        {"id": "ip-1", "ip": "1.2.3.4", "attached_network_interface_id": "nic-1"}
+    ]
+
+    runner = CliRunner()
+    result = runner.invoke(vm, ["demo"], obj=_app(client))
+    assert result.exit_code == 0, result.output
+    assert "Attached block storages" in result.output
+    assert "Attached NICs" in result.output
+    assert "Attached public IPs" in result.output
+
+
+def test_vm_get_skips_empty_sections():
+    client = MagicMock()
+    client.list_vms.return_value = [{"id": "vm-1", "name": "demo"}]
+    client.get_vm.return_value = {"id": "vm-1", "name": "demo", "status": "stopped"}
+    client.list_block_storages.return_value = []
+    client.list_nics.return_value = []
+
+    runner = CliRunner()
+    result = runner.invoke(vm, ["demo"], obj=_app(client))
+    assert result.exit_code == 0, result.output
+    assert "Attached block storages" not in result.output
+    assert "Attached NICs" not in result.output
+    assert "Attached public IPs" not in result.output
+    client.list_public_ips.assert_not_called()

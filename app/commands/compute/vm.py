@@ -2,12 +2,16 @@ from __future__ import annotations
 
 import click
 
+from ...client import is_active_allocation
 from ...utils import (
     AppContext,
     FilterSpec,
     ResourceGroup,
+    console,
     emit_action_result,
     register_list_get,
+    render_list,
+    render_one,
 )
 
 
@@ -36,6 +40,84 @@ register_list_get(
         FilterSpec("tags"),
     ],
 )
+
+
+# Override the auto-registered `__get__` to also list attached resources.
+@vm.command("__get__", hidden=True)
+@click.argument("name_or_id")
+@click.option(
+    "--format",
+    "fmt",
+    type=click.Choice(["table", "json", "csv"], case_sensitive=False),
+    default="table",
+    show_default=True,
+    help="Output format.",
+)
+@click.option(
+    "--query",
+    default=None,
+    help="Comma-separated list of columns to display (overrides defaults).",
+)
+@click.pass_obj
+def vm_get(app: AppContext, name_or_id: str, fmt: str, query: str | None) -> None:
+    vm_id = app.resolver.resolve("list_vms", name_or_id)
+    vm_data = app.client.get_vm(vm_id)
+
+    block_storages = app.client.list_block_storages(attached_machine_id=vm_id)
+    nics = app.client.list_nics(attached_machine_id=vm_id)
+
+    public_ips: list[dict] = []
+    if nics:
+        nic_ids = {n["id"] for n in nics}
+        for ip in app.client.list_public_ips():
+            if ip.get("attached_network_interface_id") in nic_ids:
+                public_ips.append(ip)
+
+    if fmt == "json":
+        emit_action_result(
+            {
+                **vm_data,
+                "attached_block_storages": block_storages,
+                "attached_nics": nics,
+                "attached_public_ips": public_ips,
+            }
+        )
+        return
+
+    render_one(vm_data, fmt=fmt, query=query, resolver=app.resolver)
+
+    if block_storages:
+        console.print()
+        console.print("[bold]Attached block storages[/bold]")
+        render_list(
+            block_storages,
+            default_columns=("name", "size_gib", "status"),
+            fmt=fmt,
+            query=None,
+            resolver=app.resolver,
+        )
+
+    if nics:
+        console.print()
+        console.print("[bold]Attached NICs[/bold]")
+        render_list(
+            nics,
+            default_columns=("name", "ip", "mac", "attached_subnet", "status"),
+            fmt=fmt,
+            query=None,
+            resolver=app.resolver,
+        )
+
+    if public_ips:
+        console.print()
+        console.print("[bold]Attached public IPs[/bold]")
+        render_list(
+            public_ips,
+            default_columns=("ip", "status"),
+            fmt=fmt,
+            query=None,
+            resolver=app.resolver,
+        )
 
 
 @vm.command("create", help="Create a VM (without disk/NIC/IP — see `launch`).")
@@ -182,7 +264,7 @@ def vm_stop(app: AppContext, name_or_id: str) -> None:
         raise click.ClickException(f"VM {name_or_id} has no active allocation")
 
     for a in allocs:
-        if not a.get("terminated"):
+        if is_active_allocation(a):
             emit_action_result(app.client.delete_allocation(a["id"]))
             return
 

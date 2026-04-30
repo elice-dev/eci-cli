@@ -80,6 +80,13 @@ class NameResolver:
             exact = [i for i in items if i.get("ip") == name_or_id]
 
         if not exact:
+            # Resources like public IPs have null name; name_ilike won't
+            # match an IP address. Fall back to an unfiltered listing and
+            # try the `ip` field.
+            all_items = getattr(self.client, list_fn_name)()
+            exact = [i for i in all_items if i.get("ip") == name_or_id]
+
+        if not exact:
             raise click.ClickException(f"{list_fn_name}: no item named {name_or_id!r}")
 
         if len(exact) > 1:

@@ -90,6 +90,19 @@ def test_resolve_finds_exact_match_by_ip_when_name_missing():
     assert r.resolve("list_public_ips", "1.2.3.4") == "id-1"
 
 
+def test_resolve_falls_back_to_unfiltered_list_for_ip_lookup():
+    client = MagicMock()
+
+    def list_fn(**filters):
+        if "name_ilike" in filters:
+            return []
+        return [{"id": "id-1", "ip": "1.2.3.4"}]
+
+    client.list_public_ips.side_effect = list_fn
+    r = NameResolver(client)
+    assert r.resolve("list_public_ips", "1.2.3.4") == "id-1"
+
+
 def test_resolve_raises_when_no_match():
     client = MagicMock()
     client.list_zones.return_value = []

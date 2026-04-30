@@ -217,6 +217,33 @@ def vm_update(
 @click.pass_obj
 def vm_delete(app: AppContext, name_or_id: str, cascade: bool, yes: bool) -> None:
     vm_id = app.resolver.resolve("list_vms", name_or_id)
+
+    disks: list[dict] = []
+    nics: list[dict] = []
+    ips: list[dict] = []
+    if cascade:
+        disks = app.client.list_block_storages(attached_machine_id=vm_id)
+        nics = app.client.list_nics(attached_machine_id=vm_id)
+        nic_ids = {n["id"] for n in nics}
+        ips = [
+            ip
+            for ip in app.client.list_public_ips(
+                attached_network_interface_id="notnull"
+            )
+            if ip.get("attached_network_interface_id") in nic_ids
+        ]
+
+    if cascade and (disks or nics or ips):
+        msg = (
+            f"Cascade will delete: {len(disks)} disk(s), "
+            f"{len(nics)} NIC(s), {len(ips)} public IP(s). "
+            "Disk data will be permanently destroyed."
+        )
+        if yes:
+            click.echo(msg, err=True)
+        else:
+            click.echo(msg)
+
     if not yes:
         click.confirm(f"Delete VM {name_or_id} (cascade={cascade})?", abort=True)
 
@@ -240,20 +267,15 @@ def vm_delete(app: AppContext, name_or_id: str, cascade: bool, yes: bool) -> Non
                 interval=3,
             )
 
-        ips = app.client.list_public_ips(attached_network_interface_id="notnull")
-        nics = app.client.list_nics(attached_machine_id=vm_id)
-        nic_ids = {n["id"] for n in nics}
-
         for ip in ips:
-            if ip.get("attached_network_interface_id") in nic_ids:
-                app.client.attach_public_ip(ip["id"], None)
-                app.client.delete_public_ip(ip["id"])
+            app.client.attach_public_ip(ip["id"], None)
+            app.client.delete_public_ip(ip["id"])
 
         for nic in nics:
             app.client.attach_nic(nic["id"], None)
             app.client.delete_nic(nic["id"])
 
-        for bs in app.client.list_block_storages(attached_machine_id=vm_id):
+        for bs in disks:
             app.client.attach_block_storage(bs["id"], None)
             app.client.delete_block_storage(bs["id"])
     emit_action_result(app.client.delete_vm(vm_id))

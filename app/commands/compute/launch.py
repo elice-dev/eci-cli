@@ -1,9 +1,11 @@
 from __future__ import annotations
 
-from typing import Any
+from functools import partial
+from typing import Any, Callable
 
 import click
 
+from ...client import is_active_allocation
 from ...config import Config
 from ...utils import AppContext, emit_action_result
 
@@ -83,6 +85,14 @@ def vm_launch(
         raise click.ClickException("--nic conflicts with --subnet")
 
     cfg = Config.load()
+    explicit = {
+        "username": username,
+        "pricing": pricing,
+        "image": image,
+        "size_gib": size_gib,
+        "subnet": subnet,
+    }
+    spec: dict | None = None
     if defined:
         spec = (cfg.vm_defaults or {}).get(defined)
         if not spec:
@@ -116,102 +126,196 @@ def vm_launch(
         )
 
     out: dict[str, Any] = {}
+    cleanups: list[tuple[str, Callable[[], Any]]] = []
 
-    vm_pricing_id = app.resolver.resolve("list_pricings", pricing)
-    vm_pricing_obj = app.client.get_pricing(vm_pricing_id)
-
-    if vm_pricing_obj.get("resource_kind") != "vm_allocation" or not vm_pricing_obj.get(
-        "resource_id"
-    ):
-        raise click.ClickException(
-            f"pricing {pricing!r} is not a VM pricing "
-            f"(resource_kind={vm_pricing_obj.get('resource_kind')!r})"
+    def _rollback() -> None:
+        if not cleanups:
+            return
+        click.echo(
+            f"launch failed; rolling back {len(cleanups)} created resource(s)",
+            err=True,
         )
+        for desc, fn in reversed(cleanups):
+            try:
+                fn()
+            except Exception as e:
+                click.echo(f"  rollback: {desc} failed: {e}", err=True)
 
-    instance_type_id = vm_pricing_obj["resource_id"]
-    out["resolved"] = {
-        "instance_type_id": instance_type_id,
-        "image": image,
-    }
+    try:
+        vm_pricing_id = app.resolver.resolve("list_pricings", pricing)
+        vm_pricing_obj = app.client.get_pricing(vm_pricing_id)
 
-    vm_obj = app.client.create_vm(
-        name=name,
-        instance_type_id=instance_type_id,
-        pricing_id=vm_pricing_id,
-        username=username,
-        password=password,
-        always_on=always_on,
-        dr=dr,
-        on_init_script=init_script,
-    )
-    out["vm"] = vm_obj
-    vm_id = vm_obj["id"]
-
-    if block_storage:
-        bs_id = app.resolver.resolve("list_block_storages", block_storage)
-    else:
-        if size_gib is None:
+        if vm_pricing_obj.get(
+            "resource_kind"
+        ) != "vm_allocation" or not vm_pricing_obj.get("resource_id"):
             raise click.ClickException(
-                "--size-gib is required (or use --block-storage)"
+                f"pricing {pricing!r} is not a VM pricing "
+                f"(resource_kind={vm_pricing_obj.get('resource_kind')!r})"
             )
-        bs = app.client.create_block_storage(
-            name=f"{name}-disk",
-            size_gib=size_gib,
-            pricing_id=_well_known_pricing_id(
-                app, kind="block_storage", name="Block Storage"
-            ),
-            image_id=app.resolver.resolve("list_images", image) if image else None,
+
+        instance_type_id = vm_pricing_obj["resource_id"]
+        out["resolved"] = {
+            "instance_type_id": instance_type_id,
+            "image": image,
+        }
+
+        vm_obj = app.client.create_vm(
+            name=name,
+            instance_type_id=instance_type_id,
+            pricing_id=vm_pricing_id,
+            username=username,
+            password=password,
+            always_on=always_on,
             dr=dr,
+            on_init_script=init_script,
         )
-        out["block_storage"] = bs
-        bs_id = bs["id"]
+        out["vm"] = vm_obj
+        vm_id = vm_obj["id"]
+        cleanups.append((f"delete vm {vm_id}", partial(app.client.delete_vm, vm_id)))
 
-        app.client.wait_for_status(
-            lambda: app.client.get_block_storage(bs_id), {"prepared"}, timeout=600
-        )
-    out["block_storage_attach"] = app.client.attach_block_storage(bs_id, vm_id)
-
-    if not no_network:
-        if nic_arg:
-            nic_id = app.resolver.resolve("list_nics", nic_arg)
+        if block_storage:
+            bs_id = app.resolver.resolve("list_block_storages", block_storage)
         else:
-            if subnet is None:
+            if size_gib is None:
                 raise click.ClickException(
-                    "--subnet is required (or pass --nic / --no-network)"
+                    "--size-gib is required (or use --block-storage)"
                 )
-
-            nic = app.client.create_nic(
-                name=f"{name}-nic",
-                attached_subnet_id=app.resolver.resolve("list_subnets", subnet),
+            bs = app.client.create_block_storage(
+                name=f"{name}-disk",
+                size_gib=size_gib,
+                pricing_id=_well_known_pricing_id(
+                    app, kind="block_storage", name="Block Storage"
+                ),
+                image_id=app.resolver.resolve("list_images", image) if image else None,
                 dr=dr,
             )
-            out["nic"] = nic
-            nic_id = nic["id"]
-        out["nic_attach"] = app.client.attach_nic(nic_id, vm_id)
+            out["block_storage"] = bs
+            bs_id = bs["id"]
+            cleanups.append(
+                (
+                    f"delete block_storage {bs_id}",
+                    partial(app.client.delete_block_storage, bs_id),
+                )
+            )
 
-        if not no_public_ip:
-            if public_ip:
-                pip_id = app.resolver.resolve("list_public_ips", public_ip)
+            app.client.wait_for_status(
+                lambda: app.client.get_block_storage(bs_id), {"prepared"}, timeout=600
+            )
+
+        out["block_storage_attach"] = app.client.attach_block_storage(bs_id, vm_id)
+        cleanups.append(
+            (
+                f"detach block_storage {bs_id}",
+                partial(app.client.attach_block_storage, bs_id, None),
+            )
+        )
+
+        if not no_network:
+            if nic_arg:
+                nic_id = app.resolver.resolve("list_nics", nic_arg)
             else:
-                pip = app.client.create_public_ip(
-                    pricing_id=_well_known_pricing_id(
-                        app, kind="public_ip", name="Public IP"
-                    ),
+                if subnet is None:
+                    raise click.ClickException(
+                        "--subnet is required (or pass --nic / --no-network)"
+                    )
+
+                nic = app.client.create_nic(
+                    name=f"{name}-nic",
+                    attached_subnet_id=app.resolver.resolve("list_subnets", subnet),
                     dr=dr,
                 )
-                out["public_ip"] = pip
-                pip_id = pip["id"]
-            out["public_ip_attach"] = app.client.attach_public_ip(pip_id, nic_id)
+                out["nic"] = nic
+                nic_id = nic["id"]
+                cleanups.append(
+                    (
+                        f"delete nic {nic_id}",
+                        partial(app.client.delete_nic, nic_id),
+                    )
+                )
+            out["nic_attach"] = app.client.attach_nic(nic_id, vm_id)
+            cleanups.append(
+                (
+                    f"detach nic {nic_id}",
+                    partial(app.client.attach_nic, nic_id, None),
+                )
+            )
 
-    if not no_start:
-        out["start"] = app.client.create_allocation(vm_id)
+            if not no_public_ip:
+                if public_ip:
+                    pip_id = app.resolver.resolve("list_public_ips", public_ip)
+                else:
+                    pip = app.client.create_public_ip(
+                        pricing_id=_well_known_pricing_id(
+                            app, kind="public_ip", name="Public IP"
+                        ),
+                        dr=dr,
+                    )
+                    out["public_ip"] = pip
+                    pip_id = pip["id"]
+                    cleanups.append(
+                        (
+                            f"delete public_ip {pip_id}",
+                            partial(app.client.delete_public_ip, pip_id),
+                        )
+                    )
+                out["public_ip_attach"] = app.client.attach_public_ip(pip_id, nic_id)
+                cleanups.append(
+                    (
+                        f"detach public_ip {pip_id}",
+                        partial(app.client.attach_public_ip, pip_id, None),
+                    )
+                )
+
+        if not no_start:
+            alloc = app.client.create_allocation(vm_id)
+            out["start"] = alloc
+
+            if not isinstance(alloc, dict) or not alloc.get("id"):
+                click.echo(
+                    f"warning: create_allocation response did not include id; "
+                    f"verify server-side state for vm {vm_id}",
+                    err=True,
+                )
+
+            def _stop_active_and_wait_idle(vid: str = vm_id) -> None:
+                for a in app.client.list_allocations(machine_id=vid):
+                    if is_active_allocation(a):
+                        app.client.delete_allocation(a["id"])
+                app.client.wait_for_status(
+                    lambda: app.client.get_vm(vid),
+                    {"idle"},
+                    timeout=300,
+                    interval=3,
+                )
+
+            cleanups.append(
+                (
+                    f"stop allocation and wait for vm {vm_id} idle",
+                    _stop_active_and_wait_idle,
+                )
+            )
+    except BaseException:
+        _rollback()
+        raise
 
     emit_action_result(out)
 
-    if defined:
-        if any(
-            v is not None for v in (pricing, image, size_gib, subnet, username)
-        ) and click.confirm(
+    if defined and spec is not None:
+        spec_subnet = spec.get("subnet") or spec.get("subnet_id")
+        has_override = any(
+            (
+                explicit["username"] is not None
+                and explicit["username"] != spec.get("username"),
+                explicit["pricing"] is not None
+                and explicit["pricing"] != spec.get("pricing"),
+                explicit["image"] is not None
+                and explicit["image"] != spec.get("image"),
+                explicit["size_gib"] is not None
+                and explicit["size_gib"] != spec.get("size_gib"),
+                explicit["subnet"] is not None and explicit["subnet"] != spec_subnet,
+            )
+        )
+        if has_override and click.confirm(
             "Save these arguments as a new vm_defaults spec?", default=False
         ):
             spec_name = click.prompt("spec name")

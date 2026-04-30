@@ -65,7 +65,7 @@ eci org usage
 
 ```bash
 # End-to-end VM provisioning (VM + disk + NIC + IP + boot)
-eci vm launch \
+eci compute vm launch \
   --name demo \
   --pricing M-8 \
   --image ubuntu-22.04 \
@@ -73,14 +73,19 @@ eci vm launch \
   --subnet default
 
 # Reuse a saved spec from vm_defaults
-eci vm launch --name demo2 --defined default
+eci compute vm launch --name demo2 --defined default
 
 # Lifecycle
-eci vm                          # list
-eci vm demo                     # show
-eci vm start demo
-eci vm stop demo
-eci vm delete demo              # cascades attached disk/NIC/IP by default
+eci compute vm                  # list
+eci compute vm demo             # show
+eci compute vm start demo
+eci compute vm stop demo
+eci compute vm delete demo      # cascades attached disk/NIC/IP by default
+
+# SSH (uses the VM's stored username + first attached public IP)
+eci compute ssh demo
+eci compute ssh demo -l root -p 2222 -i ~/.ssh/id_rsa
+eci compute ssh demo -- -L 8080:localhost:8080  # forward extra ssh args after `--`
 
 # Clusters
 eci compute cluster create --name c1 --instance-type M-8
@@ -117,9 +122,9 @@ eci storage pfs member create --pfs fs --vm demo
 ## Output and querying
 
 ```bash
-eci vm --format json
-eci vm --format csv --query name,status,instance_type
-eci vm demo --format json --query name,zone     # zone_id auto-resolved to name
+eci compute vm --format json
+eci compute vm --format csv --query name,status,instance_type
+eci compute vm demo --format json --query name,zone     # zone_id auto-resolved to name
 ```
 
 When JSON format is used without `--query`, all `*_id` fields are resolved to names (`zone_id` → `zone`, etc.) where possible.
@@ -129,7 +134,7 @@ When JSON format is used without `--query`, all `*_id` fields are resolved to na
 Run a single command against a different zone without touching config:
 
 ```bash
-eci --zone kr-north vm
+eci --zone kr-north compute vm
 ```
 
 ## Development

@@ -27,10 +27,7 @@ cache:
   - uv cache prune --ci
 
 
-# Per-OS native binaries via Nuitka. macOS / Windows require GitLab Runners
-# registered with `tags: [macos]` / `tags: [windows]` against this project.
-
-build-linux-job:
+build-job:
   stage: build
   before_script:
     - *prepare-uv
@@ -38,48 +35,12 @@ build-linux-job:
     - uv run make check
     - rm -rf dist
     - apt-get update
-    - apt-get install -y --no-install-recommends gcc patchelf
+    - apt-get install -y --no-install-recommends gcc libc6-dev patchelf
     - uv run make build-binary
     - mv dist/eci "dist/eci-linux-x86_64-${CI_COMMIT_TAG:-$CI_COMMIT_SHORT_SHA}"
   artifacts:
     paths:
-      - dist/eci-linux-x86_64-*
-    expire_in: 1 days
-
-
-build-macos-job:
-  stage: build
-  tags: [macos]
-  before_script:
-    - python3 -m pip install --user uv
-    - export PATH="$HOME/.local/bin:$PATH"
-    - uv venv
-    - uv sync --locked --no-install-project
-  script:
-    - uv run make build-binary
-    - mv dist/eci "dist/eci-darwin-${CI_COMMIT_TAG:-$CI_COMMIT_SHORT_SHA}"
-  artifacts:
-    paths:
-      - dist/eci-darwin-*
-    expire_in: 1 days
-
-
-build-windows-job:
-  stage: build
-  tags: [windows]
-  before_script:
-    - python -m pip install uv
-    - uv venv
-    - uv sync --locked --no-install-project
-  script:
-    # Windows runner uses PowerShell; call nuitka directly (no `make` available).
-    - uv run python -m nuitka --onefile --output-filename=eci.exe --output-dir=dist --include-package=app --assume-yes-for-downloads --remove-output --no-progressbar --mingw64 entry.py
-    - |
-      $suffix = if ($env:CI_COMMIT_TAG) { $env:CI_COMMIT_TAG } else { $env:CI_COMMIT_SHORT_SHA }
-      Move-Item dist\eci.exe "dist\eci-windows-x86_64-$suffix.exe"
-  artifacts:
-    paths:
-      - dist/eci-windows-*
+      - dist/
     expire_in: 1 days
 
 
@@ -103,39 +64,22 @@ test-unit-job:
 
 deploy-pre-release-upload-job:
   stage: deploy
-  needs:
-    - job: build-linux-job
-      artifacts: true
-    - job: build-macos-job
-      artifacts: true
-    - job: build-windows-job
-      artifacts: true
+  needs: ["build-job"]
   cache: {}
   rules:
     - if: $CI_COMMIT_TAG
   script:
-    - |
-      LINUX="eci-linux-x86_64-${CI_COMMIT_TAG}"
-      MAC="eci-darwin-${CI_COMMIT_TAG}"
-      WIN="eci-windows-x86_64-${CI_COMMIT_TAG}.exe"
-      BASE="${CI_API_V4_URL}/projects/${CI_PROJECT_ID}/packages/generic/release/${CI_COMMIT_TAG}"
-
-      for NAME in "${LINUX}" "${MAC}" "${WIN}"; do
-        curl --fail-with-body \
-          --header "JOB-TOKEN: ${CI_JOB_TOKEN}" \
-          --upload-file "dist/${NAME}" \
-          "${BASE}/${NAME}"
-      done
+    - 'curl
+      --fail-with-body
+      --header "JOB-TOKEN: $CI_JOB_TOKEN"
+      --upload-file "dist/eci-linux-x86_64-${CI_COMMIT_TAG}"
+      "${CI_API_V4_URL}/projects/${CI_PROJECT_ID}/packages/generic/release/${CI_COMMIT_TAG}/eci-linux-x86_64-${CI_COMMIT_TAG}"'
 
 
 deploy-release-job:
   stage: deploy
   needs:
-    - job: build-linux-job
-      artifacts: true
-    - job: build-macos-job
-      artifacts: true
-    - job: build-windows-job
+    - job: build-job
       artifacts: true
     - job: deploy-pre-release-upload-job
   cache: {}
@@ -146,35 +90,20 @@ deploy-release-job:
     - apk add --no-cache gettext
   script:
     - |
-      export LINUX="eci-linux-x86_64-${CI_COMMIT_TAG}"
-      export MAC="eci-darwin-${CI_COMMIT_TAG}"
-      export WIN="eci-windows-x86_64-${CI_COMMIT_TAG}.exe"
-      export BASE="${CI_API_V4_URL}/projects/${CI_PROJECT_ID}/packages/generic/release/${CI_COMMIT_TAG}"
+      ASSET_NAME="eci-linux-x86_64-${CI_COMMIT_TAG}"
+      ASSET_URL="${CI_API_V4_URL}/projects/${CI_PROJECT_ID}/packages/generic/release/${CI_COMMIT_TAG}/${ASSET_NAME}"
 
-      export LINUX_SHA=$(sha256sum "dist/${LINUX}" | awk '{print $1}')
-      export MAC_SHA=$(sha256sum "dist/${MAC}" | awk '{print $1}')
-      export WIN_SHA=$(sha256sum "dist/${WIN}" | awk '{print $1}')
+      export BIN_MD5=$(md5sum "dist/${ASSET_NAME}" | awk '{print $1}')
+      export BIN_SHA1=$(sha1sum "dist/${ASSET_NAME}" | awk '{print $1}')
+      export BIN_SHA256=$(sha256sum "dist/${ASSET_NAME}" | awk '{print $1}')
 
       cat > RELEASE_NOTES.md <<'EOF'
-      Automatic release for ${CI_COMMIT_TAG}
+      Automatic release description for ${CI_COMMIT_TAG}
 
-      Pick the binary for your OS, make executable, place on PATH.
-
-      ```
-      # Linux (x86_64)
-      curl -L -o eci ${BASE}/${LINUX} && chmod +x eci
-
-      # macOS
-      curl -L -o eci ${BASE}/${MAC} && chmod +x eci
-
-      # Windows (x86_64)
-      Invoke-WebRequest -Uri ${BASE}/${WIN} -OutFile eci.exe
-      ```
-
-      **Checksums (SHA256)**
-      - `${LINUX}`: `${LINUX_SHA}`
-      - `${MAC}`: `${MAC_SHA}`
-      - `${WIN}`: `${WIN_SHA}`
+      **Checksums**
+      - MD5: `${BIN_MD5}`
+      - SHA1: `${BIN_SHA1}`
+      - SHA256: `${BIN_SHA256}`
       EOF
 
       envsubst < RELEASE_NOTES.md > RELEASE_NOTES.rendered.md
@@ -183,6 +112,4 @@ deploy-release-job:
         --name "Release ${CI_COMMIT_TAG}" \
         --tag-name "${CI_COMMIT_TAG}" \
         --description "$(cat RELEASE_NOTES.rendered.md)" \
-        --assets-link "{\"name\":\"${LINUX}\",\"url\":\"${BASE}/${LINUX}\",\"link_type\":\"other\"}" \
-        --assets-link "{\"name\":\"${MAC}\",\"url\":\"${BASE}/${MAC}\",\"link_type\":\"other\"}" \
-        --assets-link "{\"name\":\"${WIN}\",\"url\":\"${BASE}/${WIN}\",\"link_type\":\"other\"}"
+        --assets-link "{\"name\":\"${ASSET_NAME}\",\"url\":\"${ASSET_URL}\",\"link_type\":\"other\"}"

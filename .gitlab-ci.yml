@@ -1,14 +1,15 @@
 image: docker.io/elice/python:3.11
 
 stages:
-  - check
   - build
+  - test
   - deploy
 
 
 variables:
   UV_CACHE_DIR: .uv-cache
   XDG_CACHE_HOME: "$CI_PROJECT_DIR/.cache"
+
 
 cache:
     key:
@@ -19,31 +20,76 @@ cache:
       - $UV_CACHE_DIR
 
 
-.prepare-uv-linux: &prepare-uv-linux
+.prepare-uv-template: &prepare-uv
   - python -m pip install uv
   - uv venv
   - uv sync --locked --no-install-project
   - uv cache prune --ci
 
 
-# === check: format + lint + type + tests (every commit) ===
+# Per-OS native binaries via Nuitka. macOS / Windows require GitLab Runners
+# registered with `tags: [macos]` / `tags: [windows]` against this project.
 
-check-job:
-  stage: check
+build-linux-job:
+  stage: build
   before_script:
-    - *prepare-uv-linux
+    - *prepare-uv
   script:
-    - uv run ruff format --check app/ tests/
-    - uv run ruff check app/ tests/
-    - uv run mypy app/ tests/
+    - uv run make check
+    - rm -rf dist
+    - apt-get update
+    - apt-get install -y --no-install-recommends gcc patchelf
+    - uv run make build-binary
+    - mv dist/eci "dist/eci-linux-x86_64-${CI_COMMIT_TAG:-$CI_COMMIT_SHORT_SHA}"
+  artifacts:
+    paths:
+      - dist/eci-linux-x86_64-*
+    expire_in: 1 days
+
+
+build-macos-job:
+  stage: build
+  tags: [macos]
+  before_script:
+    - python3 -m pip install --user uv
+    - export PATH="$HOME/.local/bin:$PATH"
+    - uv venv
+    - uv sync --locked --no-install-project
+  script:
+    - uv run make build-binary
+    - mv dist/eci "dist/eci-darwin-${CI_COMMIT_TAG:-$CI_COMMIT_SHORT_SHA}"
+  artifacts:
+    paths:
+      - dist/eci-darwin-*
+    expire_in: 1 days
+
+
+build-windows-job:
+  stage: build
+  tags: [windows]
+  before_script:
+    - python -m pip install uv
+    - uv venv
+    - uv sync --locked --no-install-project
+  script:
+    # Windows runner uses PowerShell; call nuitka directly (no `make` available).
+    - uv run python -m nuitka --onefile --output-filename=eci.exe --output-dir=dist --include-package=app --assume-yes-for-downloads --remove-output --no-progressbar --mingw64 entry.py
+    - |
+      $suffix = if ($env:CI_COMMIT_TAG) { $env:CI_COMMIT_TAG } else { $env:CI_COMMIT_SHORT_SHA }
+      Move-Item dist\eci.exe "dist\eci-windows-x86_64-$suffix.exe"
+  artifacts:
+    paths:
+      - dist/eci-windows-*
+    expire_in: 1 days
 
 
 test-unit-job:
-  stage: check
+  stage: test
   before_script:
-    - *prepare-uv-linux
+    - *prepare-uv
   script:
-    - uv run pytest --cov=app --cov-report=term --cov-report=xml tests/
+    - uv run pytest --cov=app --cov-report term --cov-report html
+    - uv run coverage xml
   coverage: '/(?i)total.*? (100(?:\.0+)?\%|[1-9]?\d(?:\.\d+)?\%)$/'
   artifacts:
     paths:
@@ -55,72 +101,8 @@ test-unit-job:
     expire_in: 1 days
 
 
-# === build: per-OS Nuitka binary (tag only) ===
-# Requires GitLab Runners registered with these tags:
-#   - default Docker runner       → build-linux-job
-#   - tags: [macos]               → build-macos-job
-#   - tags: [windows]             → build-windows-job
-
-build-linux-job:
-  stage: build
-  rules:
-    - if: $CI_COMMIT_TAG
-  before_script:
-    - apt-get update && apt-get install -y --no-install-recommends gcc patchelf
-    - *prepare-uv-linux
-  script:
-    - uv run make build-binary
-    - mv dist/eci dist/eci-linux-x86_64-${CI_COMMIT_TAG}
-  artifacts:
-    paths:
-      - dist/eci-linux-x86_64-*
-    expire_in: 7 days
-
-
-build-macos-job:
-  stage: build
-  tags: [macos]
-  rules:
-    - if: $CI_COMMIT_TAG
-  before_script:
-    - python3 -m pip install --user uv
-    - export PATH="$HOME/.local/bin:$PATH"
-    - uv venv
-    - uv sync --locked --no-install-project
-  script:
-    - uv run make build-binary
-    - mv dist/eci dist/eci-darwin-${CI_COMMIT_TAG}
-  artifacts:
-    paths:
-      - dist/eci-darwin-*
-    expire_in: 7 days
-
-
-build-windows-job:
-  stage: build
-  tags: [windows]
-  rules:
-    - if: $CI_COMMIT_TAG
-  before_script:
-    - python -m pip install uv
-    - uv venv
-    - uv sync --locked --no-install-project
-  script:
-    # Windows runner uses PowerShell; call nuitka directly (no `make` available).
-    - uv run python -m nuitka --onefile --output-filename=eci.exe --output-dir=dist --include-package=app --assume-yes-for-downloads --remove-output --no-progressbar --mingw64 entry.py
-    - Move-Item dist\eci.exe "dist\eci-windows-x86_64-${env:CI_COMMIT_TAG}.exe"
-  artifacts:
-    paths:
-      - dist/eci-windows-*
-    expire_in: 7 days
-
-
-# === deploy: upload + release (tag only) ===
-
-deploy-upload-job:
+deploy-pre-release-upload-job:
   stage: deploy
-  rules:
-    - if: $CI_COMMIT_TAG
   needs:
     - job: build-linux-job
       artifacts: true
@@ -129,6 +111,8 @@ deploy-upload-job:
     - job: build-windows-job
       artifacts: true
   cache: {}
+  rules:
+    - if: $CI_COMMIT_TAG
   script:
     - |
       LINUX="eci-linux-x86_64-${CI_COMMIT_TAG}"
@@ -146,8 +130,6 @@ deploy-upload-job:
 
 deploy-release-job:
   stage: deploy
-  rules:
-    - if: $CI_COMMIT_TAG
   needs:
     - job: build-linux-job
       artifacts: true
@@ -155,9 +137,11 @@ deploy-release-job:
       artifacts: true
     - job: build-windows-job
       artifacts: true
-    - job: deploy-upload-job
+    - job: deploy-pre-release-upload-job
   cache: {}
   image: registry.gitlab.com/gitlab-org/release-cli:latest
+  rules:
+    - if: $CI_COMMIT_TAG
   before_script:
     - apk add --no-cache gettext
   script:
@@ -199,6 +183,6 @@ deploy-release-job:
         --name "Release ${CI_COMMIT_TAG}" \
         --tag-name "${CI_COMMIT_TAG}" \
         --description "$(cat RELEASE_NOTES.rendered.md)" \
-        --assets-link "{\"name\":\"${LINUX}\",\"url\":\"${BASE}/${LINUX}\",\"link_type\":\"package\"}" \
-        --assets-link "{\"name\":\"${MAC}\",\"url\":\"${BASE}/${MAC}\",\"link_type\":\"package\"}" \
-        --assets-link "{\"name\":\"${WIN}\",\"url\":\"${BASE}/${WIN}\",\"link_type\":\"package\"}"
+        --assets-link "{\"name\":\"${LINUX}\",\"url\":\"${BASE}/${LINUX}\",\"link_type\":\"other\"}" \
+        --assets-link "{\"name\":\"${MAC}\",\"url\":\"${BASE}/${MAC}\",\"link_type\":\"other\"}" \
+        --assets-link "{\"name\":\"${WIN}\",\"url\":\"${BASE}/${WIN}\",\"link_type\":\"other\"}"

@@ -18,6 +18,23 @@ test:
 	uv run pytest --cov=app --cov-report=term --cov-report=html --cov-report=xml tests/
 
 .PHONY: build
-build:
-	@rm -rf dist/
+build: build-wheel
+
+.PHONY: build-wheel
+build-wheel:
+	@rm -f dist/*.whl dist/*.tar.gz
 	uv build
+
+.PHONY: build-binary
+build-binary:
+	@rm -f dist/eci dist/eci.exe
+	@rm -rf entry.build entry.dist entry.onefile-build
+	uv run python -m nuitka \
+		--onefile \
+		--output-filename=eci \
+		--output-dir=dist \
+		--include-package=app \
+		--assume-yes-for-downloads \
+		--remove-output \
+		--no-progressbar \
+		entry.py

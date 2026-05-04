@@ -4,21 +4,44 @@ ECI — Elice Cloud Infrastructure CLI.
 
 A command-line interface for managing compute, network, and storage resources on Elice Cloud.
 
+`eci -V` / `eci --version` prints the installed version. Transient `5xx`/`429`
+responses from the API are automatically retried (3 attempts, exponential
+backoff, `Retry-After` honored).
+
 ## Installation
 
-From a built artifact:
+### From a release (recommended) — single binary, no Python required
+
+Each tagged release publishes a self-contained native binary for **Linux**,
+**macOS**, and **Windows**. Pick the asset for your OS from the GitLab release
+page, drop it on `PATH`, and run.
 
 ```bash
-uv tool install eci_cli-0.1.0-py3-none-any.whl
+# Linux (x86_64)
+curl -L -o eci <release-asset-url>/eci-linux-x86_64-vX.Y.Z
+chmod +x eci && sudo mv eci /usr/local/bin/
+
+# macOS
+curl -L -o eci <release-asset-url>/eci-darwin-vX.Y.Z
+chmod +x eci && sudo mv eci /usr/local/bin/
 ```
 
-From source:
+```powershell
+# Windows (x86_64)
+Invoke-WebRequest -Uri <release-asset-url>/eci-windows-x86_64-vX.Y.Z.exe -OutFile eci.exe
+```
+
+### From source (Python 3.11+)
 
 ```bash
 git clone <repo-url> eci-cli
 cd eci-cli
 uv sync
+uv run eci --help
 ```
+
+`make build` produces a cross-platform wheel under `dist/` for ad-hoc local
+distribution. CI does not publish wheels — only native binaries.
 
 ## Configuration
 
@@ -42,8 +65,33 @@ You can also edit values one at a time:
 
 ```bash
 eci config set api_token <TOKEN>
-eci config set vm_defaults.username ubuntu
 eci config show
+eci config verify          # auth + zone + vm-spec references resolve
+```
+
+The `set` command coerces digit-only and `true`/`false` strings to int/bool. After
+editing, `verify` is the way to confirm nothing got accidentally cast (e.g. an
+image name that happened to be all digits).
+
+### Saved VM specs
+
+Reusable launch specs (templates) live under `vm-spec`:
+
+```bash
+eci vm-spec save default \
+  --instance-type M-8 --image ubuntu-22.04 --size-gib 100 --subnet default --username ubuntu
+eci vm-spec save spot --instance-type M-8 --price-type spot --image ubuntu-22.04 --size-gib 100 --subnet default
+eci vm-spec list
+eci vm-spec show default
+eci vm-spec save default --instance-type M-16 --force      # overwrite
+eci vm-spec delete old
+```
+
+Use a saved spec at launch time:
+
+```bash
+eci compute vm launch --name demo --spec default
+eci compute vm launch --name demo --spec default --size-gib 200   # override → prompts to re-save
 ```
 
 ## Usage
@@ -67,13 +115,21 @@ eci org usage
 # End-to-end VM provisioning (VM + disk + NIC + IP + boot)
 eci compute vm launch \
   --name demo \
-  --pricing M-8 \
+  --instance-type M-8 \
   --image ubuntu-22.04 \
   --size-gib 100 \
   --subnet default
 
-# Reuse a saved spec from vm_defaults
-eci compute vm launch --name demo2 --defined default
+# Spot price type
+eci compute vm launch --name demo --instance-type M-8 --price-type spot \
+  --image ubuntu-22.04 --size-gib 100 --subnet default
+
+# Or pick a pricing UUID directly
+eci compute vm launch --name demo --pricing-id <UUID> \
+  --image ubuntu-22.04 --size-gib 100 --subnet default
+
+# Reuse a saved spec (see "Saved VM specs" section)
+eci compute vm launch --name demo2 --spec default
 
 # Lifecycle
 eci compute vm                  # list

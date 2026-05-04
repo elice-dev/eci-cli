@@ -1,15 +1,16 @@
 from __future__ import annotations
 
+from unittest.mock import MagicMock
+
 import yaml
 from click.testing import CliRunner
 
+from app.commands import configure as configure_module
 from app.commands.configure import (
-    config_delete_vm_spec,
     config_group,
-    config_list_vm_specs,
     config_set,
     config_show,
-    config_show_vm_spec,
+    config_verify,
     configure,
 )
 
@@ -66,34 +67,159 @@ def test_config_show_redacts_token(isolated_config_path):
     assert "***" in result.output
 
 
-def test_config_list_vm_specs_lists_keys(isolated_config_path):
-    _, path = isolated_config_path
-    path.write_text(yaml.safe_dump({"vm_defaults": {"small": {}, "large": {}}}))
-    runner = CliRunner()
-    result = runner.invoke(config_list_vm_specs)
-    assert result.exit_code == 0
-    assert set(result.output.split()) == {"small", "large"}
-
-
-def test_config_show_vm_spec_missing_errors(isolated_config_path):
-    runner = CliRunner()
-    result = runner.invoke(config_show_vm_spec, ["missing"])
-    assert result.exit_code != 0
-    assert "no spec named" in result.output
-
-
-def test_config_delete_vm_spec_removes_entry(isolated_config_path):
-    _, path = isolated_config_path
-    path.write_text(yaml.safe_dump({"vm_defaults": {"a": {"k": 1}, "b": {}}}))
-    runner = CliRunner()
-    result = runner.invoke(config_delete_vm_spec, ["a"])
-    assert result.exit_code == 0
-    assert "deleted vm_defaults.a" in result.output
-    saved = yaml.safe_load(path.read_text())
-    assert saved["vm_defaults"] == {"b": {}}
-
-
 def test_config_group_set_subcommand_via_group(isolated_config_path):
     runner = CliRunner()
     result = runner.invoke(config_group, ["set", "api_token", "tok"])
     assert result.exit_code == 0
+
+
+def _write_full_config(path, **extra) -> None:
+    base = {
+        "api_endpoint": "https://api.example/api",
+        "api_token": "tok",
+        "zone_id": "11111111-1111-1111-1111-111111111111",
+    }
+    base.update(extra)
+    path.write_text(yaml.safe_dump(base))
+
+
+def test_config_verify_reports_missing_required_fields(isolated_config_path):
+    _, path = isolated_config_path
+    path.write_text(yaml.safe_dump({"api_endpoint": "e"}))
+    result = CliRunner().invoke(config_verify)
+    assert result.exit_code != 0
+    assert "api_token: not set" in result.output
+    assert "zone_id: not set" in result.output
+
+
+def test_config_verify_reports_auth_failure(isolated_config_path, monkeypatch):
+    _, path = isolated_config_path
+    _write_full_config(path)
+
+    from app.client import ECIError
+
+    fake = MagicMock()
+    fake.organization.side_effect = ECIError(401, "unauthorized", "bad token")
+    monkeypatch.setattr(configure_module, "ECIClient", lambda cfg: fake)
+
+    result = CliRunner().invoke(config_verify)
+    assert result.exit_code != 0
+    assert "auth: " in result.output
+    assert "authentication failed" in result.output
+
+
+def test_config_verify_validates_zone_uuid_exists(isolated_config_path, monkeypatch):
+    _, path = isolated_config_path
+    _write_full_config(path)
+
+    fake = MagicMock()
+    fake.organization.return_value = {"name": "elice"}
+    fake.list_zones.return_value = [
+        {"id": "11111111-1111-1111-1111-111111111111", "name": "kr-central"}
+    ]
+    monkeypatch.setattr(configure_module, "ECIClient", lambda cfg: fake)
+
+    result = CliRunner().invoke(config_verify)
+    assert result.exit_code == 0, result.output
+    assert "zone: kr-central" in result.output
+    assert "all checks passed" in result.output
+
+
+def test_config_verify_reports_unknown_zone_uuid(isolated_config_path, monkeypatch):
+    _, path = isolated_config_path
+    _write_full_config(path)
+
+    fake = MagicMock()
+    fake.organization.return_value = {"name": "elice"}
+    fake.list_zones.return_value = [{"id": "other-zone", "name": "other"}]
+    monkeypatch.setattr(configure_module, "ECIClient", lambda cfg: fake)
+
+    result = CliRunner().invoke(config_verify)
+    assert result.exit_code != 0
+    assert "zone_id" in result.output
+    assert "not found" in result.output
+
+
+def test_config_verify_validates_vm_defaults_specs(isolated_config_path, monkeypatch):
+    _, path = isolated_config_path
+    _write_full_config(
+        path,
+        vm_defaults={
+            "good": {"pricing": "M-8", "image": "ubuntu", "subnet": "default"},
+        },
+    )
+
+    fake = MagicMock()
+    fake.organization.return_value = {"name": "elice"}
+    fake.list_zones.return_value = [
+        {"id": "11111111-1111-1111-1111-111111111111", "name": "kr-central"}
+    ]
+    fake.list_pricings.return_value = [{"id": "p-1", "name": "M-8"}]
+    fake.list_images.return_value = [{"id": "img-1", "name": "ubuntu"}]
+    fake.list_subnets.return_value = [{"id": "sn-1", "name": "default"}]
+    monkeypatch.setattr(configure_module, "ECIClient", lambda cfg: fake)
+
+    result = CliRunner().invoke(config_verify)
+    assert result.exit_code == 0, result.output
+    assert "vm_defaults.good" in result.output
+
+
+def test_config_verify_flags_unresolvable_spec_field(isolated_config_path, monkeypatch):
+    _, path = isolated_config_path
+    _write_full_config(
+        path,
+        vm_defaults={"broken": {"pricing": "ghost-pricing"}},
+    )
+
+    fake = MagicMock()
+    fake.organization.return_value = {"name": "elice"}
+    fake.list_zones.return_value = [
+        {"id": "11111111-1111-1111-1111-111111111111", "name": "kr-central"}
+    ]
+    fake.list_pricings.return_value = []
+    monkeypatch.setattr(configure_module, "ECIClient", lambda cfg: fake)
+
+    result = CliRunner().invoke(config_verify)
+    assert result.exit_code != 0
+    assert "vm_defaults.broken" in result.output
+    assert "ghost-pricing" in result.output
+
+
+def test_config_verify_flags_corrupted_string_field(isolated_config_path, monkeypatch):
+    _, path = isolated_config_path
+    _write_full_config(
+        path,
+        vm_defaults={"bad": {"image": 12345}},
+    )
+
+    fake = MagicMock()
+    fake.organization.return_value = {"name": "elice"}
+    fake.list_zones.return_value = [
+        {"id": "11111111-1111-1111-1111-111111111111", "name": "kr-central"}
+    ]
+    monkeypatch.setattr(configure_module, "ECIClient", lambda cfg: fake)
+
+    result = CliRunner().invoke(config_verify)
+    assert result.exit_code != 0
+    assert "image=12345" in result.output
+    assert "must be a string" in result.output
+
+
+def test_config_verify_flags_corrupted_size_gib(isolated_config_path, monkeypatch):
+    _, path = isolated_config_path
+    _write_full_config(
+        path,
+        vm_defaults={"bad": {"size_gib": "100"}},
+    )
+
+    fake = MagicMock()
+    fake.organization.return_value = {"name": "elice"}
+    fake.list_zones.return_value = [
+        {"id": "11111111-1111-1111-1111-111111111111", "name": "kr-central"}
+    ]
+    monkeypatch.setattr(configure_module, "ECIClient", lambda cfg: fake)
+
+    result = CliRunner().invoke(config_verify)
+    assert result.exit_code != 0
+    assert "size_gib='100'" in result.output
+    assert "must be an int" in result.output

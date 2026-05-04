@@ -4,6 +4,7 @@ import sys
 
 import click
 
+from . import __version__
 from .client import ECIClient, ECIError
 from .config import Config
 from .utils import AppContext, NameResolver, err_console
@@ -16,10 +17,12 @@ from .commands.org import org
 from .commands.pricing import pricing
 from .commands.region import region
 from .commands.storage import storage
+from .commands.vm_spec import vm_spec
 from .commands.zone import zone
 
 
 @click.group(help="ECI — Elice Cloud Infrastructure CLI.")
+@click.version_option(__version__, "-V", "--version", prog_name="eci")
 @click.option(
     "--zone",
     "zone_override",
@@ -66,6 +69,8 @@ cli.add_command(org)
 cli.add_command(compute)
 cli.add_command(network)
 cli.add_command(storage)
+
+cli.add_command(vm_spec)
 
 
 def main() -> None:

@@ -5,9 +5,15 @@ from typing import Any, Callable
 
 import click
 
-from ...client import is_active_allocation
+from ...client import (
+    BlockStorageStatus,
+    PricingResourceKind,
+    VMStatus,
+    is_active_allocation,
+)
 from ...config import Config
 from ...utils import AppContext, emit_action_result
+from ._pricing import PriceType, resolve_create_pricing
 
 
 def _well_known_pricing_id(app: AppContext, *, kind: str, name: str) -> str:
@@ -25,9 +31,23 @@ def _well_known_pricing_id(app: AppContext, *, kind: str, name: str) -> str:
     "--username", default=None, help="OS first user (default: ubuntu or from spec)."
 )
 @click.option(
-    "--pricing",
+    "--instance-type",
+    "instance_type",
     default=None,
-    help="VM pricing name (e.g. 'M-8'). Determines the instance type.",
+    help="Instance type name or UUID (e.g. 'M-8').",
+)
+@click.option(
+    "--price-type",
+    "price_type",
+    type=click.Choice([t.value for t in PriceType]),
+    default=None,
+    help="Price type for --instance-type (default: ondemand).",
+)
+@click.option(
+    "--pricing-id",
+    "pricing_id",
+    default=None,
+    help="Explicit pricing UUID. With --instance-type/--price-type, all three must agree.",
 )
 @click.option("--image", default=None, help="OS image name or UUID.")
 @click.option("--size-gib", "size_gib", type=int, default=None)
@@ -36,12 +56,12 @@ def _well_known_pricing_id(app: AppContext, *, kind: str, name: str) -> str:
 @click.option("--always-on/--no-always-on", default=False)
 @click.option("--dr/--no-dr", default=False)
 @click.option(
-    "--defined",
-    "defined",
+    "--spec",
+    "spec_name",
     is_flag=False,
     flag_value="default",
     default=None,
-    help="Use a saved spec from vm_defaults (default name = `default`).",
+    help="Use a saved vm-spec by name (default = `default`).",
 )
 @click.option(
     "--block-storage",
@@ -62,14 +82,16 @@ def vm_launch(
     name: str,
     password: str | None,
     username: str | None,
-    pricing: str | None,
+    instance_type: str | None,
+    price_type: str | None,
+    pricing_id: str | None,
     image: str | None,
     size_gib: int | None,
     subnet: str | None,
     init_script: str,
     always_on: bool,
     dr: bool,
-    defined: str | None,
+    spec_name: str | None,
     block_storage: str | None,
     nic_arg: str | None,
     public_ip: str | None,
@@ -87,29 +109,30 @@ def vm_launch(
     cfg = Config.load()
     explicit = {
         "username": username,
-        "pricing": pricing,
+        "instance_type": instance_type,
+        "price_type": price_type,
+        "pricing_id": pricing_id,
         "image": image,
         "size_gib": size_gib,
         "subnet": subnet,
     }
     spec: dict | None = None
-    if defined:
-        spec = (cfg.vm_defaults or {}).get(defined)
+    if spec_name:
+        spec = (cfg.vm_defaults or {}).get(spec_name)
         if not spec:
-            raise click.ClickException(f"no vm_defaults spec named {defined!r}")
+            raise click.ClickException(f"no vm-spec named {spec_name!r}")
         username = username or spec.get("username")
         image = image if image is not None else spec.get("image")
         size_gib = size_gib if size_gib is not None else spec.get("size_gib")
         subnet = subnet or spec.get("subnet") or spec.get("subnet_id")
-        pricing = pricing or spec.get("pricing")
+        instance_type = instance_type or spec.get("instance_type")
+        price_type = price_type or spec.get("price_type")
+        pricing_id = pricing_id or spec.get("pricing_id")
 
     username = username or "ubuntu"
 
     if not password:
         password = click.prompt("password", hide_input=True, confirmation_prompt=False)
-
-    if not pricing:
-        raise click.ClickException("--pricing is required")
 
     if not block_storage:
         if size_gib is None:
@@ -142,20 +165,15 @@ def vm_launch(
                 click.echo(f"  rollback: {desc} failed: {e}", err=True)
 
     try:
-        vm_pricing_id = app.resolver.resolve("list_pricings", pricing)
-        vm_pricing_obj = app.client.get_pricing(vm_pricing_id)
-
-        if vm_pricing_obj.get(
-            "resource_kind"
-        ) != "vm_allocation" or not vm_pricing_obj.get("resource_id"):
-            raise click.ClickException(
-                f"pricing {pricing!r} is not a VM pricing "
-                f"(resource_kind={vm_pricing_obj.get('resource_kind')!r})"
-            )
-
-        instance_type_id = vm_pricing_obj["resource_id"]
+        vm_pricing_id, instance_type_id = resolve_create_pricing(
+            app,
+            instance_type=instance_type,
+            price_type=price_type,
+            pricing_id=pricing_id,
+        )
         out["resolved"] = {
             "instance_type_id": instance_type_id,
+            "pricing_id": vm_pricing_id,
             "image": image,
         }
 
@@ -184,7 +202,7 @@ def vm_launch(
                 name=f"{name}-disk",
                 size_gib=size_gib,
                 pricing_id=_well_known_pricing_id(
-                    app, kind="block_storage", name="Block Storage"
+                    app, kind=PricingResourceKind.block_storage, name="Block Storage"
                 ),
                 image_id=app.resolver.resolve("list_images", image) if image else None,
                 dr=dr,
@@ -199,7 +217,9 @@ def vm_launch(
             )
 
             app.client.wait_for_status(
-                lambda: app.client.get_block_storage(bs_id), {"prepared"}, timeout=600
+                lambda: app.client.get_block_storage(bs_id),
+                {BlockStorageStatus.prepared},
+                timeout=600,
             )
 
         out["block_storage_attach"] = app.client.attach_block_storage(bs_id, vm_id)
@@ -246,7 +266,7 @@ def vm_launch(
                 else:
                     pip = app.client.create_public_ip(
                         pricing_id=_well_known_pricing_id(
-                            app, kind="public_ip", name="Public IP"
+                            app, kind=PricingResourceKind.public_ip, name="Public IP"
                         ),
                         dr=dr,
                     )
@@ -283,7 +303,7 @@ def vm_launch(
                         app.client.delete_allocation(a["id"])
                 app.client.wait_for_status(
                     lambda: app.client.get_vm(vid),
-                    {"idle"},
+                    {VMStatus.idle},
                     timeout=300,
                     interval=3,
                 )
@@ -300,14 +320,18 @@ def vm_launch(
 
     emit_action_result(out)
 
-    if defined and spec is not None:
+    if spec_name and spec is not None:
         spec_subnet = spec.get("subnet") or spec.get("subnet_id")
         has_override = any(
             (
                 explicit["username"] is not None
                 and explicit["username"] != spec.get("username"),
-                explicit["pricing"] is not None
-                and explicit["pricing"] != spec.get("pricing"),
+                explicit["instance_type"] is not None
+                and explicit["instance_type"] != spec.get("instance_type"),
+                explicit["price_type"] is not None
+                and explicit["price_type"] != spec.get("price_type"),
+                explicit["pricing_id"] is not None
+                and explicit["pricing_id"] != spec.get("pricing_id"),
                 explicit["image"] is not None
                 and explicit["image"] != spec.get("image"),
                 explicit["size_gib"] is not None
@@ -316,16 +340,22 @@ def vm_launch(
             )
         )
         if has_override and click.confirm(
-            "Save these arguments as a new vm_defaults spec?", default=False
+            "Save these arguments as a new vm-spec?", default=False
         ):
-            spec_name = click.prompt("spec name")
+            new_name = click.prompt("spec name")
             cfg.vm_defaults = cfg.vm_defaults or {}
-            cfg.vm_defaults[spec_name] = {
+            new_spec: dict = {
                 "username": username,
-                "pricing": pricing,
                 "size_gib": size_gib,
                 "image": image,
                 "subnet": subnet,
             }
+            if instance_type is not None:
+                new_spec["instance_type"] = instance_type
+            if price_type is not None:
+                new_spec["price_type"] = price_type
+            if pricing_id is not None:
+                new_spec["pricing_id"] = pricing_id
+            cfg.vm_defaults[new_name] = new_spec
             cfg.save()
-            click.echo(f"saved vm_defaults.{spec_name}")
+            click.echo(f"saved vm_defaults.{new_name}")

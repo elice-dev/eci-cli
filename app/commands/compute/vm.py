@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import click
 
-from ...client import is_active_allocation
+from ...client import VMStatus, is_active_allocation
 from ...utils import (
     AppContext,
     FilterSpec,
@@ -13,6 +13,7 @@ from ...utils import (
     render_list,
     render_one,
 )
+from ._pricing import PriceType, resolve_create_pricing
 
 
 @click.group("vm", cls=ResourceGroup, help="Virtual machines.")
@@ -20,11 +21,30 @@ def vm() -> None:
     pass
 
 
+def _attach_public_ips(vms: list[dict], app: AppContext) -> list[dict]:
+    if not vms:
+        return vms
+    vm_ids = {v["id"] for v in vms}
+    nic_to_vm: dict[str, str] = {}
+    for n in app.client.list_nics():
+        attached = n.get("attached_machine_id")
+        if isinstance(attached, str) and attached in vm_ids:
+            nic_to_vm[n["id"]] = attached
+    ips_by_vm: dict[str, list[str]] = {}
+    for ip in app.client.list_public_ips():
+        nic_id = ip.get("attached_network_interface_id")
+        if nic_id in nic_to_vm and ip.get("ip"):
+            ips_by_vm.setdefault(nic_to_vm[nic_id], []).append(ip["ip"])
+    for v in vms:
+        v["public_ip"] = ", ".join(ips_by_vm.get(v["id"], []))
+    return vms
+
+
 register_list_get(
     vm,
     list_fn="list_vms",
     get_fn="get_vm",
-    default_columns=("name", "status", "instance_type", "always_on"),
+    default_columns=("name", "status", "instance_type", "public_ip"),
     filters=[
         FilterSpec("ids"),
         FilterSpec("created_ge"),
@@ -39,6 +59,7 @@ register_list_get(
         FilterSpec("pricing_id"),
         FilterSpec("tags"),
     ],
+    transform=_attach_public_ips,
 )
 
 
@@ -122,9 +143,23 @@ def vm_get(app: AppContext, name_or_id: str, fmt: str, query: str | None) -> Non
 @vm.command("create", help="Create a VM (without disk/NIC/IP — see `launch`).")
 @click.option("--name", required=True)
 @click.option(
-    "--pricing",
-    required=True,
-    help="VM pricing name (e.g. 'M-8'). Determines the instance type.",
+    "--instance-type",
+    "instance_type",
+    default=None,
+    help="Instance type name or UUID (e.g. 'M-8').",
+)
+@click.option(
+    "--price-type",
+    "price_type",
+    type=click.Choice([t.value for t in PriceType]),
+    default=None,
+    help="Price type for --instance-type (default: ondemand).",
+)
+@click.option(
+    "--pricing-id",
+    "pricing_id",
+    default=None,
+    help="Explicit pricing UUID. With --instance-type/--price-type, all three must agree.",
 )
 @click.option("--username", required=True)
 @click.option(
@@ -137,29 +172,27 @@ def vm_get(app: AppContext, name_or_id: str, fmt: str, query: str | None) -> Non
 def vm_create(
     app: AppContext,
     name: str,
-    pricing: str,
+    instance_type: str | None,
+    price_type: str | None,
+    pricing_id: str | None,
     username: str,
     password: str,
     always_on: bool,
     dr: bool,
     on_init_script: str,
 ) -> None:
-    pricing_id = app.resolver.resolve("list_pricings", pricing)
-    pricing_obj = app.client.get_pricing(pricing_id)
-
-    if pricing_obj.get("resource_kind") != "vm_allocation" or not pricing_obj.get(
-        "resource_id"
-    ):
-        raise click.ClickException(
-            f"pricing {pricing!r} is not a VM pricing "
-            f"(resource_kind={pricing_obj.get('resource_kind')!r})"
-        )
+    final_pricing_id, final_it_id = resolve_create_pricing(
+        app,
+        instance_type=instance_type,
+        price_type=price_type,
+        pricing_id=pricing_id,
+    )
 
     emit_action_result(
         app.client.create_vm(
             name=name,
-            instance_type_id=pricing_obj["resource_id"],
-            pricing_id=pricing_id,
+            instance_type_id=final_it_id,
+            pricing_id=final_pricing_id,
             username=username,
             password=password,
             always_on=always_on,
@@ -262,7 +295,7 @@ def vm_delete(app: AppContext, name_or_id: str, cascade: bool, yes: bool) -> Non
             click.echo("Waiting for VM to become idle...")
             app.client.wait_for_status(
                 lambda: app.client.get_vm(vm_id),
-                {"idle"},
+                {VMStatus.idle},
                 timeout=300,
                 interval=3,
             )

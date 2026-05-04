@@ -156,3 +156,8 @@ Thumbs.db
 # Project-specific
 *.local
 config.local.*
+
+# Nuitka build artifacts
+entry.build/
+entry.dist/
+entry.onefile-build/

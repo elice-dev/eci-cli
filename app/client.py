@@ -7,6 +7,8 @@ from typing import Any, Callable
 from urllib.parse import urlparse
 
 import requests
+from requests.adapters import HTTPAdapter
+from urllib3.util.retry import Retry
 
 from .config import Config
 
@@ -33,8 +35,30 @@ class VMAllocationStatus(enum.StrEnum):
         }
 
 
+class VMStatus(enum.StrEnum):
+    idle = enum.auto()
+    allocated = enum.auto()
+    deleted = enum.auto()
+
+
+class BlockStorageStatus(enum.StrEnum):
+    queued = enum.auto()
+    assigned = enum.auto()
+    prepared = enum.auto()
+    deleting = enum.auto()
+    deleted = enum.auto()
+
+
+class PricingResourceKind(enum.StrEnum):
+    vm_allocation = enum.auto()
+    block_storage = enum.auto()
+    block_storage_dr = enum.auto()
+    object_storage = enum.auto()
+    parallel_file_system = enum.auto()
+    public_ip = enum.auto()
+
+
 def is_active_allocation(allocation: dict) -> bool:
-    """True if the allocation dict represents a currently active allocation."""
     raw = allocation.get("status")
     if not isinstance(raw, str):
         return False
@@ -86,6 +110,20 @@ class ECIClient:
                 "Content-Type": "application/json",
             }
         )
+
+        retry = Retry(
+            total=3,
+            backoff_factor=0.5,
+            status_forcelist=(429, 502, 503, 504),
+            allowed_methods=frozenset(
+                ["GET", "HEAD", "OPTIONS", "PUT", "DELETE", "POST", "PATCH"]
+            ),
+            respect_retry_after_header=True,
+            raise_on_status=False,
+        )
+        adapter = HTTPAdapter(max_retries=retry)
+        self.session.mount("http://", adapter)
+        self.session.mount("https://", adapter)
 
     def _url(self, path: str) -> str:
         return f"{self.base}{self.path_prefix}{path}"

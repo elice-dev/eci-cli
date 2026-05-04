@@ -1,4 +1,4 @@
-from typing import Any, Sequence
+from typing import Any, Callable, Sequence
 
 import click
 
@@ -14,6 +14,7 @@ def register_list_get(
     get_fn: str,
     default_columns: Sequence[str],
     filters: Sequence[FilterSpec],
+    transform: Callable[[list[dict], AppContext], list[dict]] | None = None,
 ) -> None:
     filter_names = [f.name for f in filters]
 
@@ -104,8 +105,11 @@ def register_list_get(
                     v = app.resolver.resolve(r, v)
             filter_kwargs[n] = v
 
+        items = getattr(app.client, list_fn)(**filter_kwargs)
+        if transform is not None:
+            items = transform(items, app)
         render_list(
-            getattr(app.client, list_fn)(**filter_kwargs),
+            items,
             default_columns=default_columns,
             fmt=kwargs.pop("fmt", "table"),
             query=kwargs.pop("query", None),

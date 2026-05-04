@@ -3,7 +3,10 @@ from __future__ import annotations
 import click
 import yaml
 
+from ..client import ECIClient, ECIError
 from ..config import CONFIG_PATH, Config
+from ..utils import NameResolver
+from ..utils.name_resolver import is_uuid
 
 
 @click.command("configure", help="Interactively configure ~/.eci/config.yaml.")
@@ -63,33 +66,85 @@ def config_show() -> None:
     )
 
 
-@config_group.command("list-vm-specs", help="List saved vm_defaults specs.")
-def config_list_vm_specs() -> None:
+@config_group.command(
+    "verify",
+    help="Check that the current config can authenticate and resolve saved references.",
+)
+def config_verify() -> None:
     cfg = Config.load()
-    for name in (cfg.vm_defaults or {}).keys():
-        click.echo(name)
+    failures: list[str] = []
 
+    for field in ("api_endpoint", "api_token", "zone_id"):
+        if not getattr(cfg, field):
+            failures.append(f"{field}: not set")
+            click.echo(f"  ✗ {field}: not set", err=True)
 
-@config_group.command("show-vm-spec", help="Show one saved vm_defaults spec.")
-@click.argument("name")
-def config_show_vm_spec(name: str) -> None:
-    cfg = Config.load()
-    spec = (cfg.vm_defaults or {}).get(name)
+    if failures:
+        raise click.ClickException("required config fields missing")
 
-    if not spec:
-        raise click.ClickException(f"no spec named {name!r}")
-    click.echo(yaml.safe_dump(spec, sort_keys=False))
+    client = ECIClient(cfg)
+    resolver = NameResolver(client)
 
+    try:
+        org = client.organization()
+        click.echo(f"  ✓ auth: org={org.get('name', '?')}")
+    except ECIError as e:
+        click.echo(f"  ✗ auth: {e}", err=True)
+        raise click.ClickException("authentication failed") from None
 
-@config_group.command("delete-vm-spec", help="Delete a saved vm_defaults spec.")
-@click.argument("name")
-def config_delete_vm_spec(name: str) -> None:
-    cfg = Config.load()
+    try:
+        if is_uuid(cfg.zone_id):
+            zones = client.list_zones()
+            match = next((z for z in zones if z["id"] == cfg.zone_id), None)
+            if match is None:
+                failures.append(f"zone_id={cfg.zone_id} not found")
+                click.echo(f"  ✗ zone_id: {cfg.zone_id} not found", err=True)
+            else:
+                click.echo(f"  ✓ zone: {match.get('name')}")
+        else:
+            zid = resolver.resolve("list_zones", cfg.zone_id)
+            click.echo(f"  ✓ zone: {cfg.zone_id} → {zid}")
+    except (ECIError, click.ClickException) as e:
+        failures.append(f"zone_id: {e}")
+        click.echo(f"  ✗ zone_id: {e}", err=True)
 
-    if name not in (cfg.vm_defaults or {}):
-        raise click.ClickException(f"no spec named {name!r}")
+    fields_to_check: tuple[tuple[str, str], ...] = (
+        ("pricing", "list_pricings"),
+        ("image", "list_images"),
+        ("subnet", "list_subnets"),
+    )
+    for spec_name, spec in (cfg.vm_defaults or {}).items():
+        spec_failures: list[str] = []
+        if not isinstance(spec, dict):
+            click.echo(f"  ✗ vm_defaults.{spec_name}: not a mapping", err=True)
+            failures.append(f"vm_defaults.{spec_name}: not a mapping")
+            continue
+        for field, list_fn in fields_to_check:
+            value = spec.get(field)
+            if value is None or value == "":
+                continue
+            if not isinstance(value, str):
+                spec_failures.append(
+                    f"{field}={value!r}: must be a string (got {type(value).__name__})"
+                )
+                continue
+            try:
+                resolver.resolve(list_fn, value)
+            except (ECIError, click.ClickException) as e:
+                spec_failures.append(f"{field}={value!r}: {e}")
+        size_gib = spec.get("size_gib")
+        if size_gib is not None and not isinstance(size_gib, int):
+            spec_failures.append(
+                f"size_gib={size_gib!r}: must be an int (got {type(size_gib).__name__})"
+            )
+        if spec_failures:
+            click.echo(f"  ✗ vm_defaults.{spec_name}:", err=True)
+            for line in spec_failures:
+                click.echo(f"      {line}", err=True)
+                failures.append(f"vm_defaults.{spec_name}.{line}")
+        else:
+            click.echo(f"  ✓ vm_defaults.{spec_name}")
 
-    del cfg.vm_defaults[name]
-
-    cfg.save()
-    click.echo(f"deleted vm_defaults.{name}")
+    if failures:
+        raise click.ClickException(f"{len(failures)} check(s) failed")
+    click.echo("all checks passed")

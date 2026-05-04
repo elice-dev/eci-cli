@@ -23,6 +23,7 @@ dev = [
     "pytest-cov>=5.0",
     "types-requests",
     "types-PyYAML",
+    "nuitka[onefile]>=2.0",
 ]
 
 [build-system]

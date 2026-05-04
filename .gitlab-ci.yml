@@ -26,14 +26,16 @@ cache:
   - uv cache prune --ci
 
 
-# === check: lint + tests (every commit) ===
+# === check: format + lint + type + tests (every commit) ===
 
 check-job:
   stage: check
   before_script:
     - *prepare-uv-linux
   script:
-    - uv run make check
+    - uv run ruff format --check app/ tests/
+    - uv run ruff check app/ tests/
+    - uv run mypy app/ tests/
 
 
 test-unit-job:

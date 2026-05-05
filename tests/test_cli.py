@@ -23,6 +23,24 @@ def test_cli_help_does_not_require_token(isolated_config_path):
     assert "Elice Cloud Infrastructure" in result.output
 
 
+def test_cli_short_help_works_at_root(isolated_config_path):
+    result = CliRunner().invoke(cli, ["-h"])
+    assert result.exit_code == 0
+    assert "Elice Cloud Infrastructure" in result.output
+
+
+def test_cli_short_help_works_on_subcommand(isolated_config_path):
+    result = CliRunner().invoke(cli, ["compute", "-h"])
+    assert result.exit_code == 0
+    assert "Compute resources" in result.output
+
+
+def test_cli_subcommand_help_does_not_require_token(isolated_config_path):
+    result = CliRunner().invoke(cli, ["compute", "vm", "--help"])
+    assert result.exit_code == 0
+    assert "Virtual machines" in result.output
+
+
 def test_cli_exits_2_without_api_token(isolated_config_path):
     result = CliRunner().invoke(cli, ["zone"])
     assert result.exit_code == 2

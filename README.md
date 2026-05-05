@@ -69,9 +69,9 @@ eci config show
 eci config verify          # auth + zone + vm-spec references resolve
 ```
 
-The `set` command coerces digit-only and `true`/`false` strings to int/bool. After
-editing, `verify` is the way to confirm nothing got accidentally cast (e.g. an
-image name that happened to be all digits).
+`config set` stores values as strings — it does not coerce digit-only inputs to
+int or `true`/`false` to bool. For typed VM defaults (e.g. `size_gib`), use
+`eci vm-spec save`, which validates fields and writes the right types.
 
 ### Saved VM specs
 
@@ -136,7 +136,8 @@ eci compute vm                  # list
 eci compute vm demo             # show
 eci compute vm start demo
 eci compute vm stop demo
-eci compute vm delete demo      # cascades attached disk/NIC/IP by default
+eci compute vm delete demo                # delete VM only (attached disk/NIC/IP are kept)
+eci compute vm delete demo --cascade      # also delete attached disk/NIC/IP (data loss!)
 
 # SSH (uses the VM's stored username + first attached public IP)
 eci compute ssh demo

@@ -21,7 +21,19 @@ from .commands.vm_spec import vm_spec
 from .commands.zone import zone
 
 
-@click.group(help="ECI — Elice Cloud Infrastructure CLI.")
+class _RootGroup(click.Group):
+    """Records the raw argv so the root callback can detect deep `-h/--help`."""
+
+    def parse_args(self, ctx: click.Context, args: list[str]) -> list[str]:
+        ctx.meta["eci.raw_args"] = list(args)
+        return super().parse_args(ctx, args)
+
+
+@click.group(
+    cls=_RootGroup,
+    help="ECI — Elice Cloud Infrastructure CLI.",
+    context_settings={"help_option_names": ["-h", "--help"]},
+)
 @click.version_option(__version__, "-V", "--version", prog_name="eci")
 @click.option(
     "--zone",
@@ -34,6 +46,11 @@ def cli(ctx: click.Context, zone_override: str | None) -> None:
     cfg = Config.load()
 
     if ctx.invoked_subcommand in {"configure", "config"}:
+        ctx.obj = None
+        return
+
+    raw_args = ctx.meta.get("eci.raw_args", [])
+    if any(a in ("--help", "-h") for a in raw_args):
         ctx.obj = None
         return
 

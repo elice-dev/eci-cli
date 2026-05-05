@@ -38,14 +38,22 @@ def test_config_set_top_level_writes_string(isolated_config_path):
     assert yaml.safe_load(path.read_text())["api_token"] == "abc"
 
 
-def test_config_set_parses_int_and_bool(isolated_config_path):
+def test_config_set_stores_values_as_strings(isolated_config_path):
     _, path = isolated_config_path
     runner = CliRunner()
     runner.invoke(config_set, ["vm_defaults.size", "100"])
     runner.invoke(config_set, ["vm_defaults.always_on", "true"])
     saved = yaml.safe_load(path.read_text())
-    assert saved["vm_defaults"]["size"] == 100
-    assert saved["vm_defaults"]["always_on"] is True
+    assert saved["vm_defaults"]["size"] == "100"
+    assert saved["vm_defaults"]["always_on"] == "true"
+
+
+def test_config_set_does_not_coerce_numeric_token(isolated_config_path):
+    _, path = isolated_config_path
+    runner = CliRunner()
+    runner.invoke(config_set, ["api_token", "0123456789"])
+    saved = yaml.safe_load(path.read_text())
+    assert saved["api_token"] == "0123456789"
 
 
 def test_config_set_unknown_path_returns_user_error(isolated_config_path):

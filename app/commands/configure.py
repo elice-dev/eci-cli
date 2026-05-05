@@ -29,20 +29,20 @@ def config_group() -> None:
     pass
 
 
-@config_group.command("set", help="Set a config value (dotted path).")
+@config_group.command(
+    "set",
+    help=(
+        "Set a config value (dotted path). Values are stored as strings; "
+        "use `vm-spec save` for typed VM defaults."
+    ),
+)
 @click.argument("path")
 @click.argument("value")
 def config_set(path: str, value: str) -> None:
     cfg = Config.load()
-    parsed: object = value
-
-    if value.isdigit():
-        parsed = int(value)
-    elif value.lower() in ("true", "false"):
-        parsed = value.lower() == "true"
 
     try:
-        cfg.set_path(path, parsed)
+        cfg.set_path(path, value)
     except KeyError as e:
         raise click.ClickException(str(e).strip("'"))
 

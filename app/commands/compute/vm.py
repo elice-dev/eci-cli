@@ -242,10 +242,19 @@ def vm_update(
 
 
 @vm.command(
-    "delete", help="Delete a VM (cascade-deletes attached disks/NICs/IPs by default)."
+    "delete",
+    help=(
+        "Delete a VM. Pass --cascade to also delete attached disks/NICs/IPs "
+        "(disk data is destroyed)."
+    ),
 )
 @click.argument("name_or_id")
-@click.option("--cascade/--no-cascade", default=True, show_default=True)
+@click.option(
+    "--cascade/--no-cascade",
+    default=False,
+    show_default=True,
+    help="Also delete attached disks, NICs, and public IPs.",
+)
 @click.option("-y", "--yes", is_flag=True, help="Skip confirmation.")
 @click.pass_obj
 def vm_delete(app: AppContext, name_or_id: str, cascade: bool, yes: bool) -> None:

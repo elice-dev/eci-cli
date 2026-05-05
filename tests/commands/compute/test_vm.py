@@ -265,7 +265,7 @@ def test_vm_delete_cascade_cleans_up_attached_resources():
     client.delete_vm.return_value = {"id": "vm-1"}
 
     runner = CliRunner()
-    result = runner.invoke(vm, ["delete", "demo", "-y"], obj=_app(client))
+    result = runner.invoke(vm, ["delete", "demo", "--cascade", "-y"], obj=_app(client))
     assert result.exit_code == 0, result.output
 
     client.delete_allocation.assert_not_called()
@@ -292,7 +292,7 @@ def test_vm_delete_cascade_stops_running_vm_first():
     client.delete_vm.return_value = {"id": "vm-1"}
 
     runner = CliRunner()
-    result = runner.invoke(vm, ["delete", "demo", "-y"], obj=_app(client))
+    result = runner.invoke(vm, ["delete", "demo", "--cascade", "-y"], obj=_app(client))
     assert result.exit_code == 0, result.output
 
     client.delete_allocation.assert_called_once_with("a-active")
@@ -326,6 +326,20 @@ def test_vm_delete_no_cascade_skips_cleanup():
     assert result.exit_code == 0
     client.list_nics.assert_not_called()
     client.list_block_storages.assert_not_called()
+    client.delete_vm.assert_called_once_with("vm-1")
+
+
+def test_vm_delete_default_does_not_cascade():
+    client = MagicMock()
+    client.list_vms.return_value = [{"id": "vm-1", "name": "demo"}]
+    client.delete_vm.return_value = {"id": "vm-1"}
+
+    runner = CliRunner()
+    result = runner.invoke(vm, ["delete", "demo", "-y"], obj=_app(client))
+    assert result.exit_code == 0, result.output
+    client.list_nics.assert_not_called()
+    client.list_block_storages.assert_not_called()
+    client.list_public_ips.assert_not_called()
     client.delete_vm.assert_called_once_with("vm-1")
 
 

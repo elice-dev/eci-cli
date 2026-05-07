@@ -37,8 +37,8 @@ register_list_get(
 )
 
 
-@public_ip.command("create")
-@click.option("--pricing", required=True)
+@public_ip.command("create", help="Allocate a public IP.")
+@click.option("--pricing", required=True, help="Pricing record (name or UUID).")
 @click.option("--dr/--no-dr", default=False)
 @click.option("--ddos/--no-ddos", default=True)
 @click.pass_obj
@@ -50,7 +50,7 @@ def ip_create(app: AppContext, pricing: str, dr: bool, ddos: bool) -> None:
     )
 
 
-@public_ip.command("update")
+@public_ip.command("update", help="Update tags on a public IP.")
 @click.argument("name_or_id")
 @click.option(
     "--tag", "tags", multiple=True, metavar="K=V", help="Tag k=v pairs (repeatable)."
@@ -75,9 +75,9 @@ def ip_update(app: AppContext, name_or_id: str, tags: tuple[str, ...]) -> None:
     )
 
 
-@public_ip.command("attach")
+@public_ip.command("attach", help="Attach a public IP to a NIC.")
 @click.argument("name_or_id")
-@click.option("--nic", "nic_arg", required=True)
+@click.option("--nic", "nic_arg", required=True, help="NIC (UUID or name).")
 @click.pass_obj
 def ip_attach(app: AppContext, name_or_id: str, nic_arg: str) -> None:
     emit_action_result(
@@ -88,7 +88,7 @@ def ip_attach(app: AppContext, name_or_id: str, nic_arg: str) -> None:
     )
 
 
-@public_ip.command("detach")
+@public_ip.command("detach", help="Detach a public IP from its NIC.")
 @click.argument("name_or_id")
 @click.pass_obj
 def ip_detach(app: AppContext, name_or_id: str) -> None:
@@ -99,9 +99,9 @@ def ip_detach(app: AppContext, name_or_id: str) -> None:
     )
 
 
-@public_ip.command("delete")
+@public_ip.command("delete", help="Release a public IP.")
 @click.argument("name_or_id")
-@click.option("-y", "--yes", is_flag=True)
+@click.option("-y", "--yes", is_flag=True, help="Skip confirmation.")
 @click.pass_obj
 def ip_delete(app: AppContext, name_or_id: str, yes: bool) -> None:
     pip_id = app.resolver.resolve("list_public_ips", name_or_id)

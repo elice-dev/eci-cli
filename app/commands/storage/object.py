@@ -33,7 +33,7 @@ register_list_get(
 )
 
 
-@object_storage.command("create")
+@object_storage.command("create", help="Create an object storage bucket.")
 @click.option("--name", required=True)
 @click.option("--size-gib", "size_gib", required=True, type=int)
 @click.pass_obj
@@ -41,7 +41,7 @@ def obj_create(app: AppContext, name: str, size_gib: int) -> None:
     emit_action_result(app.client.create_object_storage(name=name, size_gib=size_gib))
 
 
-@object_storage.command("update")
+@object_storage.command("update", help="Patch an object storage bucket.")
 @click.argument("name_or_id")
 @click.option("--name", default=None)
 @click.option("--size-gib", "size_gib", default=None, type=int)
@@ -66,9 +66,9 @@ def obj_update(
     )
 
 
-@object_storage.command("delete")
+@object_storage.command("delete", help="Delete an object storage bucket.")
 @click.argument("name_or_id")
-@click.option("-y", "--yes", is_flag=True)
+@click.option("-y", "--yes", is_flag=True, help="Skip confirmation.")
 @click.pass_obj
 def obj_delete(app: AppContext, name_or_id: str, yes: bool) -> None:
     oid = app.resolver.resolve("list_object_storages", name_or_id)
@@ -101,14 +101,14 @@ register_list_get(
 )
 
 
-@obj_user.command("create")
+@obj_user.command("create", help="Create an object storage user.")
 @click.option("--name", required=True)
 @click.pass_obj
 def obj_user_create(app: AppContext, name: str) -> None:
     emit_action_result(app.client.create_object_user(name=name))
 
 
-@obj_user.command("update")
+@obj_user.command("update", help="Rename an object storage user.")
 @click.argument("name_or_id")
 @click.option("--name", default=None)
 @click.pass_obj
@@ -123,9 +123,9 @@ def obj_user_update(app: AppContext, name_or_id: str, name: str | None) -> None:
     )
 
 
-@obj_user.command("delete")
+@obj_user.command("delete", help="Delete an object storage user.")
 @click.argument("name_or_id")
-@click.option("-y", "--yes", is_flag=True)
+@click.option("-y", "--yes", is_flag=True, help="Skip confirmation.")
 @click.pass_obj
 def obj_user_delete(app: AppContext, name_or_id: str, yes: bool) -> None:
     uid = app.resolver.resolve("list_object_users", name_or_id)
@@ -160,9 +160,11 @@ register_list_get(
 )
 
 
-@obj_grant.command("create")
-@click.option("--bucket", "bucket_arg", required=True)
-@click.option("--user", "user_arg", required=True)
+@obj_grant.command("create", help="Grant a user access to a bucket.")
+@click.option("--bucket", "bucket_arg", required=True, help="Bucket (UUID or name).")
+@click.option(
+    "--user", "user_arg", required=True, help="Object storage user (UUID or name)."
+)
 @click.option(
     "--permission",
     type=click.Choice(["read_only", "read_write"], case_sensitive=False),
@@ -181,7 +183,7 @@ def grant_create(
     )
 
 
-@obj_grant.command("update")
+@obj_grant.command("update", help="Change a grant's permission.")
 @click.argument("grant_id")
 @click.option(
     "--permission",
@@ -193,9 +195,9 @@ def grant_update(app: AppContext, grant_id: str, permission: str) -> None:
     emit_action_result(app.client.update_object_grant(grant_id, permission=permission))
 
 
-@obj_grant.command("delete")
+@obj_grant.command("delete", help="Revoke a grant.")
 @click.argument("grant_id")
-@click.option("-y", "--yes", is_flag=True)
+@click.option("-y", "--yes", is_flag=True, help="Skip confirmation.")
 @click.pass_obj
 def grant_delete(app: AppContext, grant_id: str, yes: bool) -> None:
     if not yes:

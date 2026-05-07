@@ -31,7 +31,7 @@ register_list_get(
 )
 
 
-@pfs.command("create")
+@pfs.command("create", help="Create a parallel file system.")
 @click.option("--name", required=True)
 @click.option("--size-gib", "size_gib", required=True, type=int)
 @click.pass_obj
@@ -39,7 +39,7 @@ def pfs_create(app: AppContext, name: str, size_gib: int) -> None:
     emit_action_result(app.client.create_pfs(name=name, size_gib=size_gib))
 
 
-@pfs.command("update")
+@pfs.command("update", help="Patch a parallel file system.")
 @click.argument("name_or_id")
 @click.option("--name", default=None)
 @click.option("--size-gib", "size_gib", default=None, type=int)
@@ -62,9 +62,9 @@ def pfs_update(
     )
 
 
-@pfs.command("delete")
+@pfs.command("delete", help="Delete a parallel file system.")
 @click.argument("name_or_id")
-@click.option("-y", "--yes", is_flag=True)
+@click.option("-y", "--yes", is_flag=True, help="Skip confirmation.")
 @click.pass_obj
 def pfs_delete(app: AppContext, name_or_id: str, yes: bool) -> None:
     pid = app.resolver.resolve("list_pfs", name_or_id)
@@ -97,9 +97,9 @@ register_list_get(
 )
 
 
-@pfs_member.command("create")
-@click.option("--pfs", "pfs_arg", required=True)
-@click.option("--vm", "vm_arg", required=True)
+@pfs_member.command("create", help="Mount a PFS on a VM.")
+@click.option("--pfs", "pfs_arg", required=True, help="PFS (UUID or name).")
+@click.option("--vm", "vm_arg", required=True, help="VM (UUID or name).")
 @click.pass_obj
 def pfs_member_create(app: AppContext, pfs_arg: str, vm_arg: str) -> None:
     emit_action_result(
@@ -110,9 +110,9 @@ def pfs_member_create(app: AppContext, pfs_arg: str, vm_arg: str) -> None:
     )
 
 
-@pfs_member.command("delete")
+@pfs_member.command("delete", help="Unmount a PFS from its VM.")
 @click.argument("member_id")
-@click.option("-y", "--yes", is_flag=True)
+@click.option("-y", "--yes", is_flag=True, help="Skip confirmation.")
 @click.pass_obj
 def pfs_member_delete(app: AppContext, member_id: str, yes: bool) -> None:
     if not yes:

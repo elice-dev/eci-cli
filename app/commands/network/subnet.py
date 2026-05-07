@@ -34,7 +34,7 @@ register_list_get(
 )
 
 
-@subnet.command("create")
+@subnet.command("create", help="Create a subnet inside a vnet.")
 @click.option("--name", required=True)
 @click.option("--network", "network_arg", required=True, help="vnet (UUID or name).")
 @click.option("--gateway", "network_gw", required=True)
@@ -53,7 +53,7 @@ def subnet_create(
     )
 
 
-@subnet.command("update")
+@subnet.command("update", help="Patch subnet attributes.")
 @click.argument("name_or_id")
 @click.option("--name", default=None)
 @click.pass_obj
@@ -68,9 +68,9 @@ def subnet_update(app: AppContext, name_or_id: str, name: str | None) -> None:
     )
 
 
-@subnet.command("delete")
+@subnet.command("delete", help="Delete a subnet.")
 @click.argument("name_or_id")
-@click.option("-y", "--yes", is_flag=True)
+@click.option("-y", "--yes", is_flag=True, help="Skip confirmation.")
 @click.pass_obj
 def subnet_delete(app: AppContext, name_or_id: str, yes: bool) -> None:
     sid = app.resolver.resolve("list_subnets", name_or_id)

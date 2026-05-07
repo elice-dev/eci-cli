@@ -35,9 +35,14 @@ register_list_get(
 )
 
 
-@cluster.command("create")
+@cluster.command("create", help="Create a virtual cluster.")
 @click.option("--name", required=True)
-@click.option("--instance-type", "instance_type", required=True)
+@click.option(
+    "--instance-type",
+    "instance_type",
+    required=True,
+    help="Instance type name or UUID.",
+)
 @click.option("--fabric-type", "fabric_type", default="infiniband", show_default=True)
 @click.pass_obj
 def cluster_create(
@@ -52,7 +57,7 @@ def cluster_create(
     )
 
 
-@cluster.command("update")
+@cluster.command("update", help="Rename a cluster.")
 @click.argument("name_or_id")
 @click.option("--name", default=None)
 @click.pass_obj
@@ -67,9 +72,9 @@ def cluster_update(app: AppContext, name_or_id: str, name: str | None) -> None:
     )
 
 
-@cluster.command("delete")
+@cluster.command("delete", help="Delete a cluster.")
 @click.argument("name_or_id")
-@click.option("-y", "--yes", is_flag=True)
+@click.option("-y", "--yes", is_flag=True, help="Skip confirmation.")
 @click.pass_obj
 def cluster_delete(app: AppContext, name_or_id: str, yes: bool) -> None:
     cid = app.resolver.resolve("list_clusters", name_or_id)
@@ -80,7 +85,7 @@ def cluster_delete(app: AppContext, name_or_id: str, yes: bool) -> None:
     emit_action_result(app.client.delete_cluster(cid))
 
 
-@cluster.command("start")
+@cluster.command("start", help="Boot a cluster (create allocation).")
 @click.argument("name_or_id")
 @click.pass_obj
 def cluster_start(app: AppContext, name_or_id: str) -> None:
@@ -91,7 +96,7 @@ def cluster_start(app: AppContext, name_or_id: str) -> None:
     )
 
 
-@cluster.command("stop")
+@cluster.command("stop", help="Stop a cluster (delete current allocation).")
 @click.argument("name_or_id")
 @click.pass_obj
 def cluster_stop(app: AppContext, name_or_id: str) -> None:

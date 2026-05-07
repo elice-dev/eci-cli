@@ -12,24 +12,18 @@ backoff, `Retry-After` honored).
 
 ### From a release (recommended) — single binary, no Python required
 
-Each tagged release publishes a self-contained native binary for **Linux**,
-**macOS**, and **Windows**. Pick the asset for your OS from the GitLab release
+Each tagged release publishes a self-contained native binary for
+**Linux x86_64** (built via Nuitka). Pick the asset from the GitLab release
 page, drop it on `PATH`, and run.
 
 ```bash
 # Linux (x86_64)
 curl -L -o eci <release-asset-url>/eci-linux-x86_64-vX.Y.Z
 chmod +x eci && sudo mv eci /usr/local/bin/
-
-# macOS
-curl -L -o eci <release-asset-url>/eci-darwin-vX.Y.Z
-chmod +x eci && sudo mv eci /usr/local/bin/
 ```
 
-```powershell
-# Windows (x86_64)
-Invoke-WebRequest -Uri <release-asset-url>/eci-windows-x86_64-vX.Y.Z.exe -OutFile eci.exe
-```
+For macOS or Windows, install from source (next section) or build a binary
+locally with `make build-binary`.
 
 ### From source (Python 3.11+)
 
@@ -221,10 +215,11 @@ app/
 ├── client.py             # HTTP client (ECIClient) wrapping the ECI API
 ├── config.py             # YAML config + env var overrides
 ├── commands/
-│   ├── compute/          # vm, cluster, launch
-│   ├── network/          # vnet, subnet, nic, ip
-│   ├── storage/          # block (+ snapshot, scheduler), obj, pfs
+│   ├── compute/          # vm (+ launch, ssh), cluster
+│   ├── network/          # vnet, subnet, nic, public_ip
+│   ├── storage/          # block (+ snapshot, scheduler), object (+ user, grant), pfs (+ member)
 │   ├── configure.py      # `eci configure` and `eci config ...`
+│   ├── vm_spec.py        # `eci vm-spec ...` (saved launch templates)
 │   └── image.py / instance_type.py / org.py / pricing.py / region.py / zone.py
 └── utils/
     ├── name_resolver.py  # name → UUID resolution + caching

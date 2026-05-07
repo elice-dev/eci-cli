@@ -39,12 +39,12 @@ register_list_get(
 )
 
 
-@block.command("create")
+@block.command("create", help="Create a block storage volume.")
 @click.option("--name", required=True)
 @click.option("--size-gib", "size_gib", required=True, type=int)
-@click.option("--pricing", required=True)
-@click.option("--image", default=None)
-@click.option("--snapshot", default=None)
+@click.option("--pricing", required=True, help="Pricing record (name or UUID).")
+@click.option("--image", default=None, help="Seed from an OS image (name or UUID).")
+@click.option("--snapshot", default=None, help="Seed from a snapshot (name or UUID).")
 @click.option("--dr/--no-dr", default=False)
 @click.pass_obj
 def block_create(
@@ -75,7 +75,7 @@ def block_create(
     )
 
 
-@block.command("update")
+@block.command("update", help="Patch a block storage volume.")
 @click.argument("name_or_id")
 @click.option("--name", default=None)
 @click.option("--size-gib", "size_gib", default=None, type=int)
@@ -101,9 +101,9 @@ def block_update(
     )
 
 
-@block.command("attach")
+@block.command("attach", help="Attach a block storage volume to a VM.")
 @click.argument("name_or_id")
-@click.option("--vm", "vm_arg", required=True)
+@click.option("--vm", "vm_arg", required=True, help="VM (UUID or name).")
 @click.pass_obj
 def block_attach(app: AppContext, name_or_id: str, vm_arg: str) -> None:
     emit_action_result(
@@ -114,7 +114,7 @@ def block_attach(app: AppContext, name_or_id: str, vm_arg: str) -> None:
     )
 
 
-@block.command("detach")
+@block.command("detach", help="Detach a block storage volume from its VM.")
 @click.argument("name_or_id")
 @click.pass_obj
 def block_detach(app: AppContext, name_or_id: str) -> None:
@@ -125,9 +125,9 @@ def block_detach(app: AppContext, name_or_id: str) -> None:
     )
 
 
-@block.command("delete")
+@block.command("delete", help="Delete a block storage volume.")
 @click.argument("name_or_id")
-@click.option("-y", "--yes", is_flag=True)
+@click.option("-y", "--yes", is_flag=True, help="Skip confirmation.")
 @click.pass_obj
 def block_delete(app: AppContext, name_or_id: str, yes: bool) -> None:
     bid = app.resolver.resolve("list_block_storages", name_or_id)
@@ -164,9 +164,11 @@ register_list_get(
 )
 
 
-@block_snapshot.command("create")
+@block_snapshot.command("create", help="Create a snapshot of a block storage volume.")
 @click.option("--name", required=True)
-@click.option("--block", "block_arg", required=True, help="block storage UUID or name")
+@click.option(
+    "--block", "block_arg", required=True, help="Block storage (UUID or name)."
+)
 @click.pass_obj
 def snapshot_create(app: AppContext, name: str, block_arg: str) -> None:
     emit_action_result(
@@ -177,7 +179,7 @@ def snapshot_create(app: AppContext, name: str, block_arg: str) -> None:
     )
 
 
-@block_snapshot.command("update")
+@block_snapshot.command("update", help="Rename a snapshot.")
 @click.argument("name_or_id")
 @click.option("--name", default=None)
 @click.pass_obj
@@ -192,9 +194,9 @@ def snapshot_update(app: AppContext, name_or_id: str, name: str | None) -> None:
     )
 
 
-@block_snapshot.command("delete")
+@block_snapshot.command("delete", help="Delete a snapshot.")
 @click.argument("name_or_id")
-@click.option("-y", "--yes", is_flag=True)
+@click.option("-y", "--yes", is_flag=True, help="Skip confirmation.")
 @click.pass_obj
 def snapshot_delete(app: AppContext, name_or_id: str, yes: bool) -> None:
     sid = app.resolver.resolve("list_block_snapshots", name_or_id)
@@ -228,11 +230,24 @@ register_list_get(
 )
 
 
-@block_scheduler.command("create")
+@block_scheduler.command("create", help="Create a recurring snapshot scheduler.")
 @click.option("--name", required=True)
-@click.option("--block", "block_arg", required=True)
-@click.option("--cron", "cron_expression", required=True)
-@click.option("--max-snapshots", "max_snapshots", required=True, type=int)
+@click.option(
+    "--block", "block_arg", required=True, help="Block storage (UUID or name)."
+)
+@click.option(
+    "--cron",
+    "cron_expression",
+    required=True,
+    help="Cron expression (e.g. '0 0 * * *').",
+)
+@click.option(
+    "--max-snapshots",
+    "max_snapshots",
+    required=True,
+    type=int,
+    help="Maximum snapshots to retain.",
+)
 @click.pass_obj
 def scheduler_create(
     app: AppContext,
@@ -251,7 +266,7 @@ def scheduler_create(
     )
 
 
-@block_scheduler.command("update")
+@block_scheduler.command("update", help="Patch a snapshot scheduler.")
 @click.argument("name_or_id")
 @click.option("--name", default=None)
 @click.option("--cron", "cron_expression", default=None)
@@ -285,9 +300,9 @@ def scheduler_update(
     )
 
 
-@block_scheduler.command("delete")
+@block_scheduler.command("delete", help="Delete a snapshot scheduler.")
 @click.argument("name_or_id")
-@click.option("-y", "--yes", is_flag=True)
+@click.option("-y", "--yes", is_flag=True, help="Skip confirmation.")
 @click.pass_obj
 def scheduler_delete(app: AppContext, name_or_id: str, yes: bool) -> None:
     sid = app.resolver.resolve("list_snapshot_schedulers", name_or_id)

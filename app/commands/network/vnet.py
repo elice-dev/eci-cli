@@ -35,7 +35,7 @@ register_list_get(
 )
 
 
-@vnet.command("create")
+@vnet.command("create", help="Create a virtual network.")
 @click.option("--name", required=True)
 @click.option("--cidr", "network_cidr", required=True, help="e.g. 10.0.0.0/16")
 @click.pass_obj
@@ -43,7 +43,7 @@ def vnet_create(app: AppContext, name: str, network_cidr: str) -> None:
     emit_action_result(app.client.create_vnet(name=name, network_cidr=network_cidr))
 
 
-@vnet.command("update")
+@vnet.command("update", help="Patch vnet attributes.")
 @click.argument("name_or_id")
 @click.option("--name", default=None)
 @click.option("--firewall-rules", default=None, help="JSON-encoded firewall rules.")
@@ -66,9 +66,9 @@ def vnet_update(
     )
 
 
-@vnet.command("delete")
+@vnet.command("delete", help="Delete a vnet.")
 @click.argument("name_or_id")
-@click.option("-y", "--yes", is_flag=True)
+@click.option("-y", "--yes", is_flag=True, help="Skip confirmation.")
 @click.pass_obj
 def vnet_delete(app: AppContext, name_or_id: str, yes: bool) -> None:
     vid = app.resolver.resolve("list_vnets", name_or_id)

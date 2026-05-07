@@ -43,9 +43,9 @@ register_list_get(
 )
 
 
-@nic.command("create")
+@nic.command("create", help="Create a network interface in a subnet.")
 @click.option("--name", required=True)
-@click.option("--subnet", "subnet_arg", required=True)
+@click.option("--subnet", "subnet_arg", required=True, help="Subnet (UUID or name).")
 @click.option("--ip", default=None)
 @click.option("--mac", default=None)
 @click.option("--dr/--no-dr", default=False)
@@ -69,7 +69,7 @@ def nic_create(
     )
 
 
-@nic.command("update")
+@nic.command("update", help="Patch NIC attributes.")
 @click.argument("name_or_id")
 @click.option("--name", default=None)
 @click.pass_obj
@@ -82,9 +82,9 @@ def nic_update(app: AppContext, name_or_id: str, name: str | None) -> None:
     )
 
 
-@nic.command("attach")
+@nic.command("attach", help="Attach a NIC to a VM.")
 @click.argument("name_or_id")
-@click.option("--vm", "vm_arg", required=True)
+@click.option("--vm", "vm_arg", required=True, help="VM (UUID or name).")
 @click.pass_obj
 def nic_attach(app: AppContext, name_or_id: str, vm_arg: str) -> None:
     emit_action_result(
@@ -95,7 +95,7 @@ def nic_attach(app: AppContext, name_or_id: str, vm_arg: str) -> None:
     )
 
 
-@nic.command("detach")
+@nic.command("detach", help="Detach a NIC from its VM.")
 @click.argument("name_or_id")
 @click.pass_obj
 def nic_detach(app: AppContext, name_or_id: str) -> None:
@@ -104,9 +104,9 @@ def nic_detach(app: AppContext, name_or_id: str) -> None:
     )
 
 
-@nic.command("delete")
+@nic.command("delete", help="Delete a NIC.")
 @click.argument("name_or_id")
-@click.option("-y", "--yes", is_flag=True)
+@click.option("-y", "--yes", is_flag=True, help="Skip confirmation.")
 @click.pass_obj
 def nic_delete(app: AppContext, name_or_id: str, yes: bool) -> None:
     nid = app.resolver.resolve("list_nics", name_or_id)

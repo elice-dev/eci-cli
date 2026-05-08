@@ -1,0 +1,174 @@
+#!/bin/sh
+# Install script for the ECI (Elice Cloud Infrastructure) CLI.
+#
+# Usage:
+#   curl -fsSL https://api.elice.cloud/cli/install.sh | sh
+#
+# Environment variables:
+#   VERSION      Specific version to install (e.g., "0.1.0"). Defaults to latest.
+#   INSTALL_DIR  Directory to symlink the launcher into. Defaults to /usr/local/bin
+#                or ~/.local/bin if /usr/local/bin is not writable.
+#   ROOT_DIR     Directory that holds the unpacked bundle. Defaults to /usr/local/eci-cli
+#                or ~/.local/eci-cli if /usr/local is not writable.
+#   API_BASE     Override the API base URL (default: https://api.elice.cloud).
+
+set -eu
+
+BINARY_NAME="eci"
+API_BASE="${API_BASE:-https://api.elice.cloud}"
+API_BASE="${API_BASE%/}"
+
+detect_os() {
+  case "$(uname -s)" in
+    Darwin) echo "darwin" ;;
+    Linux) echo "linux" ;;
+    *)
+      printf "Error: unsupported OS: %s\n" "$(uname -s)" >&2
+      exit 1
+      ;;
+  esac
+}
+
+detect_arch() {
+  case "$(uname -m)" in
+    x86_64 | amd64) echo "x86_64" ;;
+    aarch64 | arm64) echo "arm64" ;;
+    *)
+      printf "Error: unsupported architecture: %s\n" "$(uname -m)" >&2
+      exit 1
+      ;;
+  esac
+}
+
+detect_install_dir() {
+  if [ -n "${INSTALL_DIR:-}" ]; then
+    echo "$INSTALL_DIR"
+    return
+  fi
+  if [ -d /usr/local/bin ] && [ -w /usr/local/bin ]; then
+    echo "/usr/local/bin"
+  else
+    echo "$HOME/.local/bin"
+  fi
+}
+
+detect_root_dir() {
+  if [ -n "${ROOT_DIR:-}" ]; then
+    echo "$ROOT_DIR"
+    return
+  fi
+  if [ -d /usr/local ] && [ -w /usr/local ]; then
+    echo "/usr/local/eci-cli"
+  else
+    echo "$HOME/.local/eci-cli"
+  fi
+}
+
+resolve_version() {
+  if [ -n "${VERSION:-}" ]; then
+    echo "$VERSION"
+    return
+  fi
+  tag=$(curl -fsSL "${API_BASE}/cli/info" |
+    grep '"latestVersion"' |
+    head -1 |
+    sed 's/.*"latestVersion": *"\([^"]*\)".*/\1/')
+  if [ -z "$tag" ]; then
+    printf "Error: could not determine latest version. Set VERSION explicitly.\n" >&2
+    exit 1
+  fi
+  echo "$tag"
+}
+
+verify_checksum() {
+  file="$1"
+  expected="$2"
+  if command -v sha256sum >/dev/null 2>&1; then
+    actual="$(sha256sum "$file" | cut -d' ' -f1)"
+  elif command -v shasum >/dev/null 2>&1; then
+    actual="$(shasum -a 256 "$file" | cut -d' ' -f1)"
+  else
+    printf "Warning: neither sha256sum nor shasum found, skipping verification\n" >&2
+    return 0
+  fi
+  if [ "$actual" != "$expected" ]; then
+    printf "Error: checksum mismatch.\n  expected: %s\n  actual:   %s\n" "$expected" "$actual" >&2
+    exit 1
+  fi
+}
+
+main() {
+  os="$(detect_os)"
+  arch="$(detect_arch)"
+  install_dir="$(detect_install_dir)"
+  root_dir="$(detect_root_dir)"
+  version="$(resolve_version)"
+
+  asset="${BINARY_NAME}-${os}-${arch}-${version}.tar.gz"
+  url="${API_BASE}/cli/download/v${version}/${asset}"
+
+  printf "Installing %s v%s (%s/%s)\n" "$BINARY_NAME" "$version" "$os" "$arch"
+  printf "  bundle: %s\n" "$root_dir"
+  printf "  launcher: %s/%s\n" "$install_dir" "$BINARY_NAME"
+
+  tmpdir="$(mktemp -d)"
+  trap 'rm -rf "$tmpdir"' EXIT
+
+  printf "Downloading...\n"
+  curl -fsSL -o "${tmpdir}/${asset}" "$url"
+  curl -fsSL -o "${tmpdir}/checksums.txt" "${API_BASE}/cli/download/v${version}/checksums.txt"
+
+  printf "Verifying checksum...\n"
+  expected="$(grep "${asset}" "${tmpdir}/checksums.txt" | awk '{print $1}')"
+  if [ -z "$expected" ]; then
+    printf "Error: checksum not found for %s in checksums.txt\n" "$asset" >&2
+    exit 1
+  fi
+  verify_checksum "${tmpdir}/${asset}" "$expected"
+
+  printf "Extracting...\n"
+  tar xzf "${tmpdir}/${asset}" -C "$tmpdir"
+
+  bundle_dir="${tmpdir}/${BINARY_NAME}-${os}-${arch}-${version}"
+  if [ ! -d "$bundle_dir" ]; then
+    bundle_dir="$(find "$tmpdir" -mindepth 1 -maxdepth 1 -type d | head -1)"
+  fi
+
+  if [ -d "$root_dir" ]; then
+    if [ -w "$(dirname "$root_dir")" ]; then
+      rm -rf "$root_dir"
+    else
+      sudo rm -rf "$root_dir"
+    fi
+  fi
+
+  if [ -w "$(dirname "$root_dir")" ]; then
+    mv "$bundle_dir" "$root_dir"
+  else
+    sudo mv "$bundle_dir" "$root_dir"
+  fi
+
+  mkdir -p "$install_dir"
+  if [ -w "$install_dir" ]; then
+    ln -sf "$root_dir/$BINARY_NAME" "$install_dir/$BINARY_NAME"
+  else
+    sudo ln -sf "$root_dir/$BINARY_NAME" "$install_dir/$BINARY_NAME"
+  fi
+
+  printf "\nInstalled %s to %s/%s\n" "$BINARY_NAME" "$install_dir" "$BINARY_NAME"
+
+  case ":${PATH}:" in
+    *":${install_dir}:"*) ;;
+    *)
+      printf "\nWarning: %s is not in PATH.\n" "$install_dir"
+      printf "Add this to your shell rc:\n"
+      printf "  export PATH=\"%s:\$PATH\"\n" "$install_dir"
+      ;;
+  esac
+
+  printf "\nGet started:\n"
+  printf "  %s configure\n" "$BINARY_NAME"
+  printf "  %s --help\n" "$BINARY_NAME"
+}
+
+main

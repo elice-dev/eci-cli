@@ -25,12 +25,11 @@ build-wheel:
 	@rm -f dist/*.whl dist/*.tar.gz
 	uv build
 
-.PHONY: build-binary
-build-binary:
-	@rm -f dist/eci dist/eci.exe
-	@rm -rf entry.build entry.dist entry.onefile-build
+.PHONY: build-standalone
+build-standalone:
+	@rm -rf dist/entry.build dist/entry.dist
 	uv run python -m nuitka \
-		--onefile \
+		--standalone \
 		--output-filename=eci \
 		--output-dir=dist \
 		--include-package=app \

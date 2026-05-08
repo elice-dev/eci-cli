@@ -3,6 +3,7 @@ from __future__ import annotations
 import sys
 
 import click
+import truststore
 
 from . import __version__
 from .client import ECIClient, ECIError
@@ -19,6 +20,8 @@ from .commands.region import region
 from .commands.storage import storage
 from .commands.vm_spec import vm_spec
 from .commands.zone import zone
+
+truststore.inject_into_ssl()
 
 
 class _RootGroup(click.Group):

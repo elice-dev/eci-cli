@@ -37,4 +37,5 @@ build-binary:
 		--assume-yes-for-downloads \
 		--remove-output \
 		--no-progressbar \
+		--disable-ccache \
 		entry.py

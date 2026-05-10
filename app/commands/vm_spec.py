@@ -4,7 +4,7 @@ import click
 import yaml
 
 from ..config import Config
-from ..utils import StdoutHelpGroup
+from ..utils import StdoutHelpGroup, print_help_if_no_subcommand
 from .compute._pricing import PriceType
 
 
@@ -13,8 +13,9 @@ from .compute._pricing import PriceType
     cls=StdoutHelpGroup,
     help="Manage saved VM launch specs (vm_defaults).",
 )
-def vm_spec() -> None:
-    pass
+@click.pass_context
+def vm_spec(ctx: click.Context) -> None:
+    print_help_if_no_subcommand(ctx)
 
 
 @vm_spec.command("list", help="List saved spec names.")

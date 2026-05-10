@@ -10,6 +10,9 @@ class StdoutHelpGroup(click.Group):
 
     Click's default sends `Usage: ...` to stderr with exit 2 — treating empty
     invocation as an error. AWS CLI / gcloud / kubectl all return help on stdout.
+
+    Pair this with a callback that checks `ctx.invoked_subcommand is None` and
+    calls `click.echo(ctx.get_help()); ctx.exit(0)` (see `print_help_if_no_subcommand`).
     """
 
     def __init__(self, *args: Any, **kwargs: Any) -> None:
@@ -17,8 +20,12 @@ class StdoutHelpGroup(click.Group):
         kwargs.setdefault("invoke_without_command", True)
         super().__init__(*args, **kwargs)
 
-    def invoke(self, ctx: click.Context) -> Any:
-        if ctx.invoked_subcommand is None and not ctx.protected_args:
-            click.echo(ctx.get_help())
-            ctx.exit(0)
-        return super().invoke(ctx)
+
+def print_help_if_no_subcommand(ctx: click.Context) -> None:
+    """Print help on stdout and exit 0 when a group is invoked without a subcommand.
+
+    Call this at the top of a `StdoutHelpGroup` callback.
+    """
+    if ctx.invoked_subcommand is None:
+        click.echo(ctx.get_help())
+        ctx.exit(0)

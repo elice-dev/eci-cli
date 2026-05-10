@@ -7,13 +7,15 @@ from ..utils import (
     StdoutHelpGroup,
     emit_action_result,
     output_options,
+    print_help_if_no_subcommand,
     render_one,
 )
 
 
 @click.group("org", cls=StdoutHelpGroup, help="Organization info.")
-def org() -> None:
-    pass
+@click.pass_context
+def org(ctx: click.Context) -> None:
+    print_help_if_no_subcommand(ctx)
 
 
 @org.command("info", help="Show organization info.")

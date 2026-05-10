@@ -5,7 +5,7 @@ import yaml
 
 from ..client import ECIClient, ECIError
 from ..config import CONFIG_PATH, Config
-from ..utils import NameResolver, StdoutHelpGroup
+from ..utils import NameResolver, StdoutHelpGroup, print_help_if_no_subcommand
 from ..utils.name_resolver import is_uuid
 
 
@@ -25,8 +25,9 @@ def configure() -> None:
 
 
 @click.group("config", cls=StdoutHelpGroup, help="Inspect/edit the local config file.")
-def config_group() -> None:
-    pass
+@click.pass_context
+def config_group(ctx: click.Context) -> None:
+    print_help_if_no_subcommand(ctx)
 
 
 @config_group.command(

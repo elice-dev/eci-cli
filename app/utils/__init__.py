@@ -1,4 +1,4 @@
-from .group import StdoutHelpGroup
+from .group import StdoutHelpGroup, print_help_if_no_subcommand
 from .name_resolver import AppContext, NameResolver, is_uuid
 from .options import FilterSpec, filter_options, output_options
 from .output import (
@@ -25,6 +25,7 @@ __all__ = [
     "is_uuid",
     "merged_filters",
     "output_options",
+    "print_help_if_no_subcommand",
     "register_list_get",
     "render_list",
     "render_one",

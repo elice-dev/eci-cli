@@ -8,7 +8,13 @@ import truststore
 from . import __version__
 from .client import ECIClient, ECIError
 from .config import Config
-from .utils import AppContext, NameResolver, StdoutHelpGroup, err_console
+from .utils import (
+    AppContext,
+    NameResolver,
+    StdoutHelpGroup,
+    err_console,
+    print_help_if_no_subcommand,
+)
 from .commands.compute import compute
 from .commands.configure import config_group, configure
 from .commands.image import image
@@ -54,6 +60,8 @@ class _RootGroup(StdoutHelpGroup):
 )
 @click.pass_context
 def cli(ctx: click.Context, zone_override: str | None) -> None:
+    print_help_if_no_subcommand(ctx)
+
     cfg = Config.load()
 
     if ctx.invoked_subcommand in {"configure", "config"}:

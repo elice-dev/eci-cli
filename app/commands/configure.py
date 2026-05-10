@@ -9,7 +9,25 @@ from ..utils import NameResolver, StdoutHelpGroup, print_help_if_no_subcommand
 from ..utils.name_resolver import is_uuid
 
 
-@click.command("configure", help="Interactively configure ~/.eci/config.yaml.")
+@click.command(
+    "configure",
+    help=(
+        "Interactively configure ~/.eci/config.yaml.\n"
+        "\n"
+        "\b\n"
+        "Prompts for:\n"
+        "  api_endpoint  API base URL (default: https://portal.elice.cloud/api)\n"
+        "  api_token     Personal access token from the Elice Cloud portal\n"
+        "  zone_id       Default zone UUID or name (run `eci zone` to list)\n"
+        "\n"
+        "For non-interactive setup, use `eci config set` instead.\n"
+        "\n"
+        "\b\n"
+        "Examples:\n"
+        "  eci configure\n"
+        "  ECI_API_TOKEN=<token> eci configure   # pre-fill from env\n"
+    ),
+)
 def configure() -> None:
     cfg = Config.load()
     cfg.api_endpoint = click.prompt("api_endpoint", default=cfg.api_endpoint)

@@ -75,4 +75,7 @@ class Config:
 
             return
 
-        raise KeyError(f"unsupported config path: {dotted}")
+        raise KeyError(
+            f"unsupported config path: {dotted}. "
+            f"Valid: api_endpoint, api_token, zone_id, vm_defaults.<spec>.<field>"
+        )

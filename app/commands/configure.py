@@ -33,8 +33,19 @@ def config_group(ctx: click.Context) -> None:
 @config_group.command(
     "set",
     help=(
-        "Set a config value (dotted path). Values are stored as strings; "
-        "use `vm-spec save` for typed VM defaults."
+        "Set a config value. Values are stored as strings; use `vm-spec save` "
+        "for typed VM defaults.\n"
+        "\n"
+        "\b\n"
+        "Valid paths:\n"
+        "  api_endpoint, api_token, zone_id\n"
+        "  vm_defaults.<spec>.<field>\n"
+        "\n"
+        "\b\n"
+        "Examples:\n"
+        "  eci config set api_token <TOKEN>\n"
+        "  eci config set zone_id <ZONE_NAME_OR_UUID>\n"
+        "  eci config set api_endpoint https://portal.elice.cloud/api\n"
     ),
 )
 @click.argument("path")

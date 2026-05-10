@@ -34,7 +34,15 @@ class _RootGroup(StdoutHelpGroup):
 
 @click.group(
     cls=_RootGroup,
-    help="ECI — Elice Cloud Infrastructure CLI.",
+    help=(
+        "ECI — Elice Cloud Infrastructure CLI.\n"
+        "\n"
+        "\b\n"
+        "Get started:\n"
+        "  eci configure              # set api endpoint, token, default zone\n"
+        "  eci config verify          # check auth + zone\n"
+        "  eci compute vm launch ...  # see `eci compute vm launch -h`\n"
+    ),
     context_settings={"help_option_names": ["-h", "--help", "-help"]},
 )
 @click.version_option(__version__, "-V", "--version", prog_name="eci")

@@ -1,3 +1,4 @@
+from .group import StdoutHelpGroup
 from .name_resolver import AppContext, NameResolver, is_uuid
 from .options import FilterSpec, filter_options, output_options
 from .output import (
@@ -16,6 +17,7 @@ __all__ = [
     "FilterSpec",
     "NameResolver",
     "ResourceGroup",
+    "StdoutHelpGroup",
     "console",
     "emit_action_result",
     "err_console",

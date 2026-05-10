@@ -4,10 +4,15 @@ import click
 import yaml
 
 from ..config import Config
+from ..utils import StdoutHelpGroup
 from .compute._pricing import PriceType
 
 
-@click.group("vm-spec", help="Manage saved VM launch specs (vm_defaults).")
+@click.group(
+    "vm-spec",
+    cls=StdoutHelpGroup,
+    help="Manage saved VM launch specs (vm_defaults).",
+)
 def vm_spec() -> None:
     pass
 

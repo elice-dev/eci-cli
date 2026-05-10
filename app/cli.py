@@ -8,7 +8,7 @@ import truststore
 from . import __version__
 from .client import ECIClient, ECIError
 from .config import Config
-from .utils import AppContext, NameResolver, err_console
+from .utils import AppContext, NameResolver, StdoutHelpGroup, err_console
 from .commands.compute import compute
 from .commands.configure import config_group, configure
 from .commands.image import image
@@ -24,7 +24,7 @@ from .commands.zone import zone
 truststore.inject_into_ssl()
 
 
-class _RootGroup(click.Group):
+class _RootGroup(StdoutHelpGroup):
     """Records the raw argv so the root callback can detect deep `-h/--help`."""
 
     def parse_args(self, ctx: click.Context, args: list[str]) -> list[str]:

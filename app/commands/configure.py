@@ -5,7 +5,7 @@ import yaml
 
 from ..client import ECIClient, ECIError
 from ..config import CONFIG_PATH, Config
-from ..utils import NameResolver
+from ..utils import NameResolver, StdoutHelpGroup
 from ..utils.name_resolver import is_uuid
 
 
@@ -24,7 +24,7 @@ def configure() -> None:
     click.echo(f"saved {CONFIG_PATH}")
 
 
-@click.group("config", help="Inspect/edit the local config file.")
+@click.group("config", cls=StdoutHelpGroup, help="Inspect/edit the local config file.")
 def config_group() -> None:
     pass
 

@@ -2,10 +2,16 @@ from __future__ import annotations
 
 import click
 
-from ..utils import AppContext, emit_action_result, output_options, render_one
+from ..utils import (
+    AppContext,
+    StdoutHelpGroup,
+    emit_action_result,
+    output_options,
+    render_one,
+)
 
 
-@click.group("org", help="Organization info.")
+@click.group("org", cls=StdoutHelpGroup, help="Organization info.")
 def org() -> None:
     pass
 

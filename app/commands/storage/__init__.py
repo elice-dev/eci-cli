@@ -2,12 +2,13 @@ from __future__ import annotations
 
 import click
 
+from ...utils import StdoutHelpGroup
 from .block import block
 from .object import object_storage
 from .pfs import pfs
 
 
-@click.group("storage", help="Storage resources.")
+@click.group("storage", cls=StdoutHelpGroup, help="Storage resources.")
 def storage() -> None:
     pass
 

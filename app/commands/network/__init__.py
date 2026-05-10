@@ -2,13 +2,14 @@ from __future__ import annotations
 
 import click
 
+from ...utils import StdoutHelpGroup
 from .nic import nic
 from .public_ip import public_ip
 from .subnet import subnet
 from .vnet import vnet
 
 
-@click.group("network", help="Network resources.")
+@click.group("network", cls=StdoutHelpGroup, help="Network resources.")
 def network() -> None:
     pass
 

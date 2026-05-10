@@ -81,12 +81,14 @@ def cli(ctx: click.Context, zone_override: str | None) -> None:
 
     client = ECIClient(cfg)
 
-    if zone_override:
+    zone_input = zone_override or cfg.zone_id
+    if zone_input:
         try:
-            cfg.zone_id = NameResolver(client).resolve("list_zones", zone_override)
+            cfg.zone_id = NameResolver(client).resolve("list_zones", zone_input)
             client.config = cfg
         except (ECIError, click.ClickException) as e:
-            err_console.print(f"[red]zone override failed[/red]: {e}")
+            label = "zone override" if zone_override else "zone"
+            err_console.print(f"[red]{label} resolution failed[/red]: {e}")
             sys.exit(2)
 
     ctx.obj = AppContext(client=client)

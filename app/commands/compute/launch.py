@@ -72,8 +72,9 @@ def _ensure_default_subnet(app: AppContext) -> str:
         "Launch a VM end-to-end (VM + disk + NIC + IP + start).\n"
         "\n"
         "\b\n"
-        "Required (unless reused or skipped):\n"
-        "  --name, --password, --instance-type, --image, --size-gib\n"
+        "Required: --name. Other launch fields are prompted with sensible\n"
+        "defaults if not passed (instance-type=C-2, image=Ubuntu 24.04 LTS\n"
+        "(Standard), size-gib=20). Pass --password to skip the prompt.\n"
         "\n"
         "If --subnet is omitted, a default vnet/subnet ('eci-default-vnet' /\n"
         "'eci-default-subnet') is created on first use and reused after.\n"
@@ -85,7 +86,11 @@ def _ensure_default_subnet(app: AppContext) -> str:
         "\n"
         "\b\n"
         "Examples:\n"
-        "  # Minimal launch (auto-creates default vnet/subnet on first use)\n"
+        "  # Easiest — only --name; everything else prompted with defaults\n"
+        "  eci compute vm launch --name web-1\n"
+        "\n"
+        "\b\n"
+        "  # Fully non-interactive\n"
         "  eci compute vm launch --name web-1 \\\n"
         "      --instance-type C-2 --image 'Ubuntu 24.04 LTS (Standard)' \\\n"
         "      --size-gib 20 --password 'Vk7m@p2qLn5!'\n"
@@ -245,7 +250,19 @@ def vm_launch(
 
     username = username or "ubuntu"
 
+    if not block_storage:
+        if not instance_type and not pricing_id:
+            instance_type = click.prompt("instance type", default="C-2")
+        if not image:
+            image = click.prompt("image", default="Ubuntu 24.04 LTS (Standard)")
+        if size_gib is None:
+            size_gib = click.prompt("root disk size (GiB)", default=20, type=int)
+
     if not password:
+        click.echo(
+            "password (3+ char classes, no 3+ char sequence)",
+            err=True,
+        )
         password = click.prompt("password", hide_input=True, confirmation_prompt=False)
 
     if not block_storage:

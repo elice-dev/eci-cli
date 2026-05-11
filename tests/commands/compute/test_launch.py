@@ -221,27 +221,30 @@ def test_launch_nic_conflicts_with_subnet(mock_client, app_obj, isolated_config_
     assert "conflicts" in result.output
 
 
-def test_launch_missing_instance_type_or_pricing_id_errors(
+def test_launch_prompts_for_missing_fields_with_defaults(
     mock_client, app_obj, isolated_config_path
 ):
+    _stub_full_launch(mock_client)
+    mock_client.list_instance_types.return_value = [
+        {"id": "it-uuid", "name": "C-2"}
+    ]
+    mock_client.list_images.return_value = [
+        {"id": "img-uuid", "name": "Ubuntu 24.04 LTS (Standard)"}
+    ]
+    mock_client.list_subnets.return_value = [
+        {"id": "11111111-1111-1111-1111-111111111111", "name": "eci-default-subnet"}
+    ]
+
     result = CliRunner().invoke(
         vm_launch,
-        [
-            "--name",
-            "demo",
-            "--password",
-            "pw",
-            "--image",
-            "u",
-            "--size-gib",
-            "100",
-            "--subnet",
-            "s",
-        ],
+        ["--name", "demo", "--password", "pw"],
+        input="\n\n\n",
         obj=app_obj,
     )
-    assert result.exit_code != 0
-    assert "either --instance-type or --pricing-id" in result.output
+    assert result.exit_code == 0, result.output
+    assert "instance type [C-2]" in result.output
+    assert "image [Ubuntu 24.04 LTS (Standard)]" in result.output
+    assert "root disk size (GiB) [20]" in result.output
 
 
 def test_launch_without_subnet_reuses_existing_default(

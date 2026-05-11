@@ -2,7 +2,11 @@
 # Install script for the ECI (Elice Cloud Infrastructure) CLI.
 #
 # Usage:
+#   # From a release host:
 #   curl -fsSL https://api.elice.cloud/cli/install.sh | sh
+#
+#   # From a local build (after `make build-standalone`):
+#   sh scripts/install.sh --from dist/entry.dist
 #
 # Environment variables:
 #   VERSION      Specific version to install (e.g., "0.1.0"). Defaults to latest.
@@ -17,6 +21,28 @@ set -eu
 BINARY_NAME="eci"
 API_BASE="${API_BASE:-https://api.elice.cloud}"
 API_BASE="${API_BASE%/}"
+FROM_DIR=""
+
+while [ $# -gt 0 ]; do
+  case "$1" in
+    --from)
+      FROM_DIR="${2:-}"
+      if [ -z "$FROM_DIR" ]; then
+        printf "Error: --from requires a directory path\n" >&2
+        exit 1
+      fi
+      shift 2
+      ;;
+    -h | --help)
+      sed -n '2,15p' "$0" | sed 's/^# \{0,1\}//'
+      exit 0
+      ;;
+    *)
+      printf "Error: unknown option: %s\n" "$1" >&2
+      exit 1
+      ;;
+  esac
+done
 
 detect_os() {
   case "$(uname -s)" in
@@ -102,36 +128,49 @@ main() {
   arch="$(detect_arch)"
   install_dir="$(detect_install_dir)"
   root_dir="$(detect_root_dir)"
-  version="$(resolve_version)"
-
-  asset="${BINARY_NAME}-${os}-${arch}-${version}.tar.gz"
-  url="${API_BASE}/cli/download/v${version}/${asset}"
-
-  printf "Installing %s v%s (%s/%s)\n" "$BINARY_NAME" "$version" "$os" "$arch"
-  printf "  bundle: %s\n" "$root_dir"
-  printf "  launcher: %s/%s\n" "$install_dir" "$BINARY_NAME"
 
   tmpdir="$(mktemp -d)"
   trap 'rm -rf "$tmpdir"' EXIT
 
-  printf "Downloading...\n"
-  curl -fsSL -o "${tmpdir}/${asset}" "$url"
-  curl -fsSL -o "${tmpdir}/checksums.txt" "${API_BASE}/cli/download/v${version}/checksums.txt"
+  if [ -n "$FROM_DIR" ]; then
+    if [ ! -x "${FROM_DIR}/${BINARY_NAME}" ]; then
+      printf "Error: %s/%s not found or not executable\n" "$FROM_DIR" "$BINARY_NAME" >&2
+      exit 1
+    fi
+    printf "Installing %s from %s (%s/%s)\n" "$BINARY_NAME" "$FROM_DIR" "$os" "$arch"
+    printf "  bundle: %s\n" "$root_dir"
+    printf "  launcher: %s/%s\n" "$install_dir" "$BINARY_NAME"
 
-  printf "Verifying checksum...\n"
-  expected="$(grep "${asset}" "${tmpdir}/checksums.txt" | awk '{print $1}')"
-  if [ -z "$expected" ]; then
-    printf "Error: checksum not found for %s in checksums.txt\n" "$asset" >&2
-    exit 1
-  fi
-  verify_checksum "${tmpdir}/${asset}" "$expected"
+    bundle_dir="${tmpdir}/bundle"
+    cp -R "$FROM_DIR" "$bundle_dir"
+  else
+    version="$(resolve_version)"
+    asset="${BINARY_NAME}-${os}-${arch}-${version}.tar.gz"
+    url="${API_BASE}/cli/download/v${version}/${asset}"
 
-  printf "Extracting...\n"
-  tar xzf "${tmpdir}/${asset}" -C "$tmpdir"
+    printf "Installing %s v%s (%s/%s)\n" "$BINARY_NAME" "$version" "$os" "$arch"
+    printf "  bundle: %s\n" "$root_dir"
+    printf "  launcher: %s/%s\n" "$install_dir" "$BINARY_NAME"
 
-  bundle_dir="${tmpdir}/${BINARY_NAME}-${os}-${arch}-${version}"
-  if [ ! -d "$bundle_dir" ]; then
-    bundle_dir="$(find "$tmpdir" -mindepth 1 -maxdepth 1 -type d | head -1)"
+    printf "Downloading...\n"
+    curl -fsSL -o "${tmpdir}/${asset}" "$url"
+    curl -fsSL -o "${tmpdir}/checksums.txt" "${API_BASE}/cli/download/v${version}/checksums.txt"
+
+    printf "Verifying checksum...\n"
+    expected="$(grep "${asset}" "${tmpdir}/checksums.txt" | awk '{print $1}')"
+    if [ -z "$expected" ]; then
+      printf "Error: checksum not found for %s in checksums.txt\n" "$asset" >&2
+      exit 1
+    fi
+    verify_checksum "${tmpdir}/${asset}" "$expected"
+
+    printf "Extracting...\n"
+    tar xzf "${tmpdir}/${asset}" -C "$tmpdir"
+
+    bundle_dir="${tmpdir}/${BINARY_NAME}-${os}-${arch}-${version}"
+    if [ ! -d "$bundle_dir" ]; then
+      bundle_dir="$(find "$tmpdir" -mindepth 1 -maxdepth 1 -type d | head -1)"
+    fi
   fi
 
   if [ -d "$root_dir" ]; then

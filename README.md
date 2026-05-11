@@ -10,61 +10,32 @@ backoff, `Retry-After` honored).
 
 ## Installation
 
-### From a release (recommended) — Linux x86_64
-
-Each tagged release publishes a directory bundle as
-`eci-linux-x86_64-<tag>.tar.gz` (Nuitka `--standalone`, AWS CLI v2-style:
-the launcher and its dependencies live under one directory, with a symlink
-on `PATH`). Warm startup is ~85ms.
-
-The repo ships an installer that downloads the right tarball for your
-OS/arch, verifies its sha256, unpacks the bundle, and symlinks the launcher
-into `PATH`. Run it with `API_BASE` pointing at the host that serves the
-release assets:
+One line. Picks the right tarball for your OS/arch, verifies its sha256,
+unpacks to `/usr/local/eci-cli` (or `~/.local/eci-cli` without sudo) and
+symlinks `eci` onto `PATH`.
 
 ```bash
-# When the release host is wired up:
 curl -fsSL https://api.elice.cloud/cli/install.sh | sh
-
-# Or from a checked-out repo (for now, until /cli/install.sh is hosted):
-API_BASE=<release-host> sh scripts/install.sh
 ```
 
-By default the bundle is installed to `/usr/local/eci-cli` with the
-launcher symlinked to `/usr/local/bin/eci` (falls back to `~/.local/...`
-without sudo if those paths are not writable). Override with
-`ROOT_DIR=...` and `INSTALL_DIR=...`.
-
-### From source (Python 3.11+)
-
-For macOS / Windows, or when you want to develop against the CLI:
+Override the install paths if you want:
 
 ```bash
-git clone <repo-url> eci-cli
-cd eci-cli
-uv sync
-uv run eci --help
+INSTALL_DIR=~/bin ROOT_DIR=~/opt/eci-cli \
+    curl -fsSL https://api.elice.cloud/cli/install.sh | sh
 ```
 
-To build a directory bundle locally (same shape the installer expects):
-
-```bash
-make build-standalone
-# Output: dist/entry.dist/   (launcher: dist/entry.dist/eci)
-mkdir -p ~/.local/eci-cli ~/.local/bin
-cp -R dist/entry.dist/. ~/.local/eci-cli/
-ln -sf ~/.local/eci-cli/eci ~/.local/bin/eci
-```
-
-`make build` produces a cross-platform wheel under `dist/` for ad-hoc local
-distribution. CI does not publish wheels — only the standalone tarball.
+The CLI is a Nuitka `--standalone` directory bundle (AWS CLI v2-style),
+warm startup ~85ms. Releases are built for **Linux x86_64**; macOS /
+Windows users build from source — see the [Development](#development)
+section below.
 
 ### Corporate SSL inspection
 
-The CLI calls `truststore.inject_into_ssl()` at startup so requests trusts
-whatever root CAs are installed in the OS trust store (Keychain on macOS,
-`ca-certificates` on Linux, Cert Store on Windows). This makes
-`eci configure verify` work behind corporate SSL inspection (Netskope,
+The CLI calls `truststore.inject_into_ssl()` at startup so it trusts
+whatever root CAs are installed in the OS trust store (Keychain on
+macOS, `ca-certificates` on Linux, Cert Store on Windows). This makes
+`eci config verify` work behind corporate SSL inspection (Netskope,
 Zscaler, etc.) without any extra setup.
 
 ## Configuration
@@ -231,8 +202,35 @@ eci --zone kr-north compute vm
 
 ## Development
 
+For contributors to this repo (and macOS / Windows users until those
+release builds exist).
+
 ```bash
-uv sync                  # install runtime + dev dependencies
+git clone <repo-url> eci-cli
+cd eci-cli
+uv sync
+```
+
+### Two ways to run during development
+
+```bash
+# A) Fast iteration — run straight from source
+uv run eci --help
+
+# B) Reproduce the end-user install (sha-checked, sudo-aware paths,
+#    PATH warnings) against your local build
+make build-standalone                      # builds dist/entry.dist/
+sh scripts/install.sh --from dist/entry.dist
+```
+
+Use (A) while editing code. Use (B) before you ship anything that
+touches build/install — it puts your binary on `PATH` exactly the way
+end users will, and catches anything install-time you would otherwise
+miss.
+
+### Make targets
+
+```bash
 make format              # ruff format + ruff check --fix + mypy
 make check               # CI checks (no auto-fix)
 make test                # pytest with coverage

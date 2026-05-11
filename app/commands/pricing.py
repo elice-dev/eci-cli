@@ -71,4 +71,5 @@ register_list_get(
         FilterSpec("name_ilike"),
     ],
     transform=_hide_stale_vm_pricings,
+    column_labels={"price_per_hour": "price_per_hour (KRW)"},
 )

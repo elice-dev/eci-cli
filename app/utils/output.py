@@ -72,11 +72,16 @@ def _stringify(v: Any) -> str:
     return str(v)
 
 
-def _emit_table(rows: list[dict], headers: Sequence[str]) -> None:
+def _emit_table(
+    rows: list[dict],
+    headers: Sequence[str],
+    labels: dict[str, str] | None = None,
+) -> None:
     table = Table(show_lines=False)
+    labels = labels or {}
 
     for h in headers:
-        table.add_column(h, overflow="fold")
+        table.add_column(labels.get(h, h), overflow="fold")
 
     for r in rows:
         table.add_row(*[_stringify(r.get(h, "")) for h in headers])
@@ -88,10 +93,15 @@ def _emit_json(payload: Any) -> None:
     click.echo(json.dumps(payload, indent=2, ensure_ascii=False, default=str))
 
 
-def _emit_csv(rows: list[dict], headers: Sequence[str]) -> None:
+def _emit_csv(
+    rows: list[dict],
+    headers: Sequence[str],
+    labels: dict[str, str] | None = None,
+) -> None:
     buf = io.StringIO()
     w = csv.writer(buf, lineterminator="\n")
-    w.writerow(headers)
+    labels = labels or {}
+    w.writerow([labels.get(h, h) for h in headers])
 
     for r in rows:
         w.writerow([_stringify(r.get(h, "")) for h in headers])
@@ -106,6 +116,7 @@ def render_list(
     fmt: str,
     query: str | None,
     resolver: NameResolver,
+    column_labels: dict[str, str] | None = None,
 ) -> None:
     cols = _columns_from_query(query) if query else list(default_columns)
 
@@ -120,9 +131,9 @@ def render_list(
     rows = [_project_row(it, cols, resolver) for it in items]
 
     if fmt == "csv":
-        _emit_csv(rows, cols)
+        _emit_csv(rows, cols, column_labels)
     else:
-        _emit_table(rows, cols)
+        _emit_table(rows, cols, column_labels)
 
 
 def render_one(

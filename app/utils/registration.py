@@ -15,6 +15,7 @@ def register_list_get(
     default_columns: Sequence[str],
     filters: Sequence[FilterSpec],
     transform: Callable[[list[dict], AppContext], list[dict]] | None = None,
+    column_labels: dict[str, str] | None = None,
 ) -> None:
     filter_names = [f.name for f in filters]
 
@@ -116,6 +117,7 @@ def register_list_get(
             fmt=kwargs.pop("fmt", "table"),
             query=kwargs.pop("query", None),
             resolver=app.resolver,
+            column_labels=column_labels,
         )
 
     group.callback = list_callback

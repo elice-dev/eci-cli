@@ -51,14 +51,14 @@ def test_cli_config_init_subcommand_skips_token_check(
 ):
     _, path = isolated_config_path
 
-    from app.commands import configure as configure_module
+    from app.commands import config as config_module
     from unittest.mock import MagicMock
 
     fake_client = MagicMock()
     fake_client.list_zones.return_value = [
         {"id": "11111111-1111-1111-1111-111111111111", "name": "central-01-a"}
     ]
-    monkeypatch.setattr(configure_module, "ECIClient", lambda cfg: fake_client)
+    monkeypatch.setattr(config_module, "ECIClient", lambda cfg: fake_client)
 
     result = CliRunner().invoke(cli, ["config", "init"], input="1\ntok\n")
     assert result.exit_code == 0, result.output

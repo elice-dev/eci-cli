@@ -258,7 +258,7 @@ app/
 │   ├── compute/          # vm (+ launch, ssh), cluster
 │   ├── network/          # vnet, subnet, nic, public_ip
 │   ├── storage/          # block (+ snapshot, scheduler), object (+ user, grant), pfs (+ member)
-│   ├── configure.py      # `eci config init / set / show / verify`
+│   ├── config.py         # `eci config init / set / show / verify`
 │   ├── vm_spec.py        # `eci vm-spec ...` (saved launch templates)
 │   └── image.py / instance_type.py / org.py / pricing.py / region.py / zone.py
 └── utils/

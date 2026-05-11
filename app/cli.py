@@ -16,7 +16,7 @@ from .utils import (
     print_help_if_no_subcommand,
 )
 from .commands.compute import compute
-from .commands.configure import config_group
+from .commands.config import config_group
 from .commands.image import image
 from .commands.instance_type import instance_type
 from .commands.network import network

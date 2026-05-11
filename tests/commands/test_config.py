@@ -5,8 +5,8 @@ from unittest.mock import MagicMock
 import yaml
 from click.testing import CliRunner
 
-from app.commands import configure as configure_module
-from app.commands.configure import (
+from app.commands import config as config_module
+from app.commands.config import (
     config_group,
     config_init,
     config_set,
@@ -22,7 +22,7 @@ def test_config_init_writes_prompted_values(isolated_config_path, monkeypatch):
     fake_client.list_zones.return_value = [
         {"id": "11111111-1111-1111-1111-111111111111", "name": "central-01-a"}
     ]
-    monkeypatch.setattr(configure_module, "ECIClient", lambda cfg: fake_client)
+    monkeypatch.setattr(config_module, "ECIClient", lambda cfg: fake_client)
 
     runner = CliRunner()
     result = runner.invoke(config_init, input="1\nsecret-token\n")
@@ -40,7 +40,7 @@ def test_config_init_picks_gov_endpoint(isolated_config_path, monkeypatch):
     fake_client.list_zones.return_value = [
         {"id": "22222222-2222-2222-2222-222222222222", "name": "central-01-a"}
     ]
-    monkeypatch.setattr(configure_module, "ECIClient", lambda cfg: fake_client)
+    monkeypatch.setattr(config_module, "ECIClient", lambda cfg: fake_client)
 
     runner = CliRunner()
     result = runner.invoke(config_init, input="2\nsecret-token\n")
@@ -128,7 +128,7 @@ def test_config_verify_reports_auth_failure(isolated_config_path, monkeypatch):
 
     fake = MagicMock()
     fake.organization.side_effect = ECIError(401, "unauthorized", "bad token")
-    monkeypatch.setattr(configure_module, "ECIClient", lambda cfg: fake)
+    monkeypatch.setattr(config_module, "ECIClient", lambda cfg: fake)
 
     result = CliRunner().invoke(config_verify)
     assert result.exit_code != 0
@@ -145,7 +145,7 @@ def test_config_verify_validates_zone_uuid_exists(isolated_config_path, monkeypa
     fake.list_zones.return_value = [
         {"id": "11111111-1111-1111-1111-111111111111", "name": "kr-central"}
     ]
-    monkeypatch.setattr(configure_module, "ECIClient", lambda cfg: fake)
+    monkeypatch.setattr(config_module, "ECIClient", lambda cfg: fake)
 
     result = CliRunner().invoke(config_verify)
     assert result.exit_code == 0, result.output
@@ -160,7 +160,7 @@ def test_config_verify_reports_unknown_zone_uuid(isolated_config_path, monkeypat
     fake = MagicMock()
     fake.organization.return_value = {"name": "elice"}
     fake.list_zones.return_value = [{"id": "other-zone", "name": "other"}]
-    monkeypatch.setattr(configure_module, "ECIClient", lambda cfg: fake)
+    monkeypatch.setattr(config_module, "ECIClient", lambda cfg: fake)
 
     result = CliRunner().invoke(config_verify)
     assert result.exit_code != 0
@@ -185,7 +185,7 @@ def test_config_verify_validates_vm_defaults_specs(isolated_config_path, monkeyp
     fake.list_pricings.return_value = [{"id": "p-1", "name": "M-8"}]
     fake.list_images.return_value = [{"id": "img-1", "name": "ubuntu"}]
     fake.list_subnets.return_value = [{"id": "sn-1", "name": "default"}]
-    monkeypatch.setattr(configure_module, "ECIClient", lambda cfg: fake)
+    monkeypatch.setattr(config_module, "ECIClient", lambda cfg: fake)
 
     result = CliRunner().invoke(config_verify)
     assert result.exit_code == 0, result.output
@@ -205,7 +205,7 @@ def test_config_verify_flags_unresolvable_spec_field(isolated_config_path, monke
         {"id": "11111111-1111-1111-1111-111111111111", "name": "kr-central"}
     ]
     fake.list_pricings.return_value = []
-    monkeypatch.setattr(configure_module, "ECIClient", lambda cfg: fake)
+    monkeypatch.setattr(config_module, "ECIClient", lambda cfg: fake)
 
     result = CliRunner().invoke(config_verify)
     assert result.exit_code != 0
@@ -225,7 +225,7 @@ def test_config_verify_flags_corrupted_string_field(isolated_config_path, monkey
     fake.list_zones.return_value = [
         {"id": "11111111-1111-1111-1111-111111111111", "name": "kr-central"}
     ]
-    monkeypatch.setattr(configure_module, "ECIClient", lambda cfg: fake)
+    monkeypatch.setattr(config_module, "ECIClient", lambda cfg: fake)
 
     result = CliRunner().invoke(config_verify)
     assert result.exit_code != 0
@@ -245,7 +245,7 @@ def test_config_verify_flags_corrupted_size_gib(isolated_config_path, monkeypatc
     fake.list_zones.return_value = [
         {"id": "11111111-1111-1111-1111-111111111111", "name": "kr-central"}
     ]
-    monkeypatch.setattr(configure_module, "ECIClient", lambda cfg: fake)
+    monkeypatch.setattr(config_module, "ECIClient", lambda cfg: fake)
 
     result = CliRunner().invoke(config_verify)
     assert result.exit_code != 0

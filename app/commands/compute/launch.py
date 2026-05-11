@@ -22,11 +22,52 @@ def _well_known_pricing_id(app: AppContext, *, kind: str, name: str) -> str:
     )["id"]
 
 
-@click.command("launch", help="Launch a VM end-to-end (VM + disk + NIC + IP + start).")
+@click.command(
+    "launch",
+    help=(
+        "Launch a VM end-to-end (VM + disk + NIC + IP + start).\n"
+        "\n"
+        "\b\n"
+        "Required (unless reused or skipped):\n"
+        "  --name, --password, --instance-type, --image, --size-gib, --subnet\n"
+        "\n"
+        "\b\n"
+        "Password rules (enforced by the API):\n"
+        "  - 3+ character classes (upper/lower/digit/special)\n"
+        "  - no 3+ char ascending/descending sequence (1234, 9876, abcd ...)\n"
+        "\n"
+        "\b\n"
+        "Examples:\n"
+        "  # Minimal launch\n"
+        "  eci compute vm launch --name web-1 \\\n"
+        "      --instance-type C-2 --image 'Ubuntu 24.04 LTS (Standard)' \\\n"
+        "      --size-gib 20 --subnet my-subnet --password 'Vk7m@p2qLn5!'\n"
+        "\n"
+        "\b\n"
+        "  # Spot price\n"
+        "  eci compute vm launch --name web-1 --price-type spot ... (other args)\n"
+        "\n"
+        "\b\n"
+        "  # Reuse a saved spec (see `eci vm-spec save -h`)\n"
+        "  eci compute vm launch --name web-2 --spec default --password '...'\n"
+        "\n"
+        "\b\n"
+        "  # Reuse an existing disk; create new NIC + IP\n"
+        "  eci compute vm launch --name web-3 --block-storage existing-disk \\\n"
+        "      --instance-type C-2 --subnet my-subnet --password '...'\n"
+    ),
+)
 @click.option(
     "--name", required=True, help="VM name (also used as prefix for disk/NIC)."
 )
-@click.option("--password", default=None, help="OS root password.")
+@click.option(
+    "--password",
+    default=None,
+    help=(
+        "OS root password. Required unless --no-start. "
+        "Needs 3+ char classes and no 3+ char sequence."
+    ),
+)
 @click.option(
     "--username", default=None, help="OS first user (default: ubuntu or from spec)."
 )
@@ -34,7 +75,7 @@ def _well_known_pricing_id(app: AppContext, *, kind: str, name: str) -> str:
     "--instance-type",
     "instance_type",
     default=None,
-    help="Instance type name or UUID (e.g. 'M-8').",
+    help="Instance type name or UUID (e.g. 'C-2'). See `eci instance-type`.",
 )
 @click.option(
     "--price-type",
@@ -49,12 +90,38 @@ def _well_known_pricing_id(app: AppContext, *, kind: str, name: str) -> str:
     default=None,
     help="Explicit pricing UUID. With --instance-type/--price-type, all three must agree.",
 )
-@click.option("--image", default=None, help="OS image name or UUID.")
-@click.option("--size-gib", "size_gib", type=int, default=None)
-@click.option("--subnet", default=None, help="Subnet UUID or name.")
-@click.option("--init-script", default="")
-@click.option("--always-on/--no-always-on", default=False)
-@click.option("--dr/--no-dr", default=False)
+@click.option(
+    "--image",
+    default=None,
+    help="OS image name or UUID (e.g. 'Ubuntu 24.04 LTS (Standard)'). See `eci image`.",
+)
+@click.option(
+    "--size-gib",
+    "size_gib",
+    type=int,
+    default=None,
+    help="Root disk size in GiB (e.g. 20).",
+)
+@click.option(
+    "--subnet",
+    default=None,
+    help="Subnet name or UUID. See `eci network subnet`.",
+)
+@click.option(
+    "--init-script",
+    default="",
+    help="Shell snippet to run on first boot.",
+)
+@click.option(
+    "--always-on/--no-always-on",
+    default=False,
+    help="Auto-restart on host crash / DR event.",
+)
+@click.option(
+    "--dr/--no-dr",
+    default=False,
+    help="Enable disaster-recovery replication for the VM and root disk.",
+)
 @click.option(
     "--spec",
     "spec_name",

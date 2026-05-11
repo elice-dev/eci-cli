@@ -171,7 +171,7 @@ def test_main_handles_abort_in_tty(monkeypatch):
 
 
 def test_main_handles_abort_in_non_tty(monkeypatch):
-    """Abort in non-TTY (AI / scripts / CI) exits with 2 (CLI usage error),
+    """Abort in non-TTY (non-interactive callers) exits with 2 (CLI usage error),
     not 130 (SIGINT — misleading: looks like user pressed Ctrl+C)."""
 
     def boom():

@@ -109,3 +109,36 @@ def test_format_humanized_emits_title_lines_and_hint():
     assert "Quota exceeded" in s
     assert "  Resource: instance_type 'C-2'" in s
     assert "Hint: Try C-4 instead" in s
+
+
+def test_org_wide_public_ip_quota_emits_kind_specific_hint():
+    """public_ip quota has no per-resource UUID (it caps a kind).
+    Humanizer should still produce a structured message with a hint
+    pointing to `--no-public-ip` and `ip delete`."""
+    err = ECIError(
+        409,
+        "resource_quota_exceed",
+        "public IP quota exceeded",
+        detail={"resource": "public_ip", "used": 10, "limit": 10},
+    )
+    h = humanize_eci_error(err)
+    assert h is not None
+    assert h.title == "Resource quota exceeded"
+    assert any("public_ip" in line for line in h.lines)
+    assert any("used 10 / limit 10" in line for line in h.lines)
+    assert h.hint is not None
+    assert "--no-public-ip" in h.hint
+    assert "ip delete" in h.hint
+
+
+def test_org_wide_virtual_network_quota_emits_kind_specific_hint():
+    err = ECIError(
+        409,
+        "resource_quota_exceed",
+        "vnet quota exceeded",
+        detail={"resource": "virtual_network", "used": 10, "limit": 10},
+    )
+    h = humanize_eci_error(err)
+    assert h is not None
+    assert h.hint is not None
+    assert "vnet delete" in h.hint

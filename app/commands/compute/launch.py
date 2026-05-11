@@ -25,8 +25,8 @@ def _prompt_or_default(label: str, default: Any, *, type: Any = None) -> Any:
     """Prompt with default in a TTY; silently apply default otherwise.
 
     Mirrors `click.prompt(label, default=...)` but skips the prompt for
-    non-interactive callers (AI / scripts / CI) where stdin EOF would
-    otherwise abort the command.
+    non-interactive callers where stdin EOF would otherwise abort the
+    command.
     """
     if _is_tty():
         return click.prompt(label, default=default, type=type)
@@ -105,12 +105,11 @@ def _ensure_default_subnet(app: AppContext) -> str:
         "Required: --name (and --password unless --no-start).\n"
         "\n"
         "Other launch fields use sensible defaults. In a terminal they\n"
-        "prompt with the default pre-filled; in non-interactive callers\n"
-        "(AI / scripts / CI) the default is applied silently. For CPU\n"
-        "instance types (C-/M-) the default image is Ubuntu 24.04 LTS\n"
-        "(Standard) with 20 GiB; for GPU/NPU instance types (G-/N-) the\n"
-        "default is Ubuntu 24.04 LTS (AI/GPU) with 50 GiB (NVIDIA drivers\n"
-        "+ CUDA pre-installed).\n"
+        "prompt with the default pre-filled; for non-interactive callers\n"
+        "the default is applied silently. For CPU instance types (C-/M-)\n"
+        "the default image is Ubuntu 24.04 LTS (Standard) with 20 GiB;\n"
+        "for GPU/NPU instance types (G-/N-) the default is Ubuntu 24.04\n"
+        "LTS (AI/GPU) with 50 GiB (NVIDIA drivers + CUDA pre-installed).\n"
         "\n"
         "If --subnet is omitted, a default vnet/subnet ('eci-default-vnet' /\n"
         "'eci-default-subnet') is created on first use and reused after.\n"

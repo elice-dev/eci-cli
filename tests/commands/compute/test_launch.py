@@ -251,7 +251,7 @@ def test_launch_prompts_for_missing_fields_with_defaults(
 def test_launch_silently_uses_defaults_in_non_tty(
     mock_client, app_obj, isolated_config_path
 ):
-    """Non-interactive callers (AI / scripts / CI) get defaults silently."""
+    """Non-interactive callers get defaults silently."""
     _stub_full_launch(mock_client)
     mock_client.list_instance_types.return_value = [
         {"id": "it-uuid", "name": "C-2", "devices": []}

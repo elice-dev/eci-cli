@@ -46,12 +46,29 @@ class HumanizedError:
     hint: str | None = None
 
 
-def _split_resource(s: str) -> tuple[str, str] | None:
-    """'instance_type.a7fab967-...' -> ('instance_type', 'a7fab967-...')."""
-    if not isinstance(s, str) or "." not in s:
+def _split_resource(s: str) -> tuple[str, str | None] | None:
+    """'instance_type.a7fab967-...' -> ('instance_type', 'a7fab967-...')
+       'public_ip'                  -> ('public_ip', None)
+
+    Org-wide quotas (public_ip, vcpu, virtual_network, ...) come without
+    a UUID since they cap a kind rather than a specific resource.
+    """
+    if not isinstance(s, str) or not s:
         return None
-    kind, _, uuid = s.partition(".")
-    return kind, uuid
+    if "." in s:
+        kind, _, uuid = s.partition(".")
+        return kind, (uuid or None)
+    return s, None
+
+
+_QUOTA_KIND_HINTS: dict[str, str] = {
+    "public_ip": (
+        "Free a public IP:  eci network ip delete <UUID>\n"
+        "      Or skip on launch: re-run with --no-public-ip"
+    ),
+    "virtual_network": "Delete an unused vnet: eci network vnet delete <UUID>",
+    "block_storage": "Delete unused block storage: eci storage block delete <UUID>",
+}
 
 
 def _lookup_name(resolver: NameResolver, kind: str, uuid: str) -> str | None:
@@ -129,21 +146,32 @@ def humanize_eci_error(err: ECIError) -> HumanizedError | None:
         return None
 
     kind, uuid = parsed
-    name = _try_lookup_name(kind, uuid)
-    label = f"{kind} '{name}'" if name else f"{kind} {uuid}"
+    name = _try_lookup_name(kind, uuid) if uuid else None
+    if name:
+        label = f"{kind} '{name}'"
+    elif uuid:
+        label = f"{kind} {uuid}"
+    else:
+        label = kind
 
     lines = [f"Resource: {label}"]
-    if name:
+    if name and uuid:
         lines.append(f"          ({uuid})")
     if used is not None and limit is not None:
         lines.append(f"Quota:    used {used} / limit {limit}")
 
-    alts = _try_alternatives(kind, uuid)
-    hint = None
-    if alts:
-        hint = (
-            "Try a different " + kind + " with available quota:\n  " + "\n  ".join(alts)
-        )
+    hint: str | None = None
+    if uuid:
+        alts = _try_alternatives(kind, uuid)
+        if alts:
+            hint = (
+                "Try a different "
+                + kind
+                + " with available quota:\n  "
+                + "\n  ".join(alts)
+            )
+    if hint is None:
+        hint = _QUOTA_KIND_HINTS.get(kind)
 
     return HumanizedError(title="Resource quota exceeded", lines=lines, hint=hint)
 
@@ -158,6 +186,8 @@ def _humanize_generic(err: ECIError) -> HumanizedError | None:
         return None
 
     kind, uuid = parsed
+    if not uuid:
+        return None
     name = _try_lookup_name(kind, uuid)
     if not name:
         return None

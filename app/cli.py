@@ -45,11 +45,16 @@ class _RootGroup(StdoutHelpGroup):
         "ECI — Elice Cloud Infrastructure CLI.\n"
         "\n"
         "\b\n"
-        "Get started:\n"
-        "  eci config init       # interactive\n"
-        "  eci config set        # non-interactive (AI / scripts / CI) — see -h\n"
-        "  eci config verify     # check auth + zone\n"
-        "  eci compute vm launch # see -h\n"
+        "Get started — first-time setup:\n"
+        "  1) Authenticate (pick one):\n"
+        "       eci config init                       # interactive\n"
+        "       eci config set api_token <TOKEN>      # non-interactive\n"
+        "  2) eci config set zone_id auto\n"
+        "  3) eci config verify\n"
+        "\n"
+        "\b\n"
+        "Daily use:\n"
+        "  eci compute vm launch                      # see -h\n"
     ),
     context_settings={"help_option_names": ["-h", "--help", "-help"]},
 )
@@ -77,7 +82,10 @@ def cli(ctx: click.Context, zone_override: str | None) -> None:
 
     if not cfg.api_token:
         err_console.print(
-            "[red]error[/red]: api_token is not set. Run `eci config init`."
+            "[red]error[/red]: api_token is not set.\n"
+            "  Interactive:     eci config init\n"
+            "  Non-interactive: eci config set api_token <TOKEN>\n"
+            "                   eci config set zone_id auto"
         )
         sys.exit(2)
 
@@ -124,7 +132,7 @@ def main() -> None:
             sys.exit(130)
         err_console.print(
             "[red]aborted[/red]: a required value was missing and stdin "
-            "is not a TTY (AI / scripts / CI cannot answer prompts). "
+            "is not a TTY; non-interactive callers cannot answer prompts. "
             "Pass the value as a flag, or run in an interactive terminal."
         )
         sys.exit(2)

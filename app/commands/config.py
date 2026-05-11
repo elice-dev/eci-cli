@@ -86,8 +86,8 @@ def config_group(ctx: click.Context) -> None:
         "Get a token at: Elice Cloud portal → 사용자 관리 →\n"
         "사용자 액세스 토큰 → 토큰 생성\n"
         "\n"
-        "For non-interactive setup (AI / scripts), use `eci config set` to\n"
-        "write each field directly.\n"
+        "For non-interactive setup, use `eci config set` to write each\n"
+        "field directly.\n"
     ),
 )
 def config_init() -> None:
@@ -122,7 +122,7 @@ def config_init() -> None:
         "  vm_defaults.<spec>.<field>\n"
         "\n"
         "\b\n"
-        "Full non-interactive setup (AI / scripts / CI):\n"
+        "Full non-interactive setup:\n"
         "  eci config set api_endpoint https://portal.elice.cloud/api\n"
         "  eci config set api_token <TOKEN>\n"
         "  eci config set zone_id auto          # single-zone org → resolved\n"
@@ -214,10 +214,24 @@ def config_verify() -> None:
         if not getattr(cfg, field):
             failures.append(f"{field}: not set")
             click.echo(f"  ✗ {field}: not set", err=True)
-            if field == "zone_id" and cfg.api_token:
+            if field == "api_token":
+                click.echo(
+                    "    hint: eci config set api_token <TOKEN>\n"
+                    "          (portal.elice.cloud → 사용자 관리 → 사용자 액세스 토큰)",
+                    err=True,
+                )
+            elif field == "zone_id":
                 click.echo("    hint: eci config set zone_id auto", err=True)
 
     if failures:
+        if any("not set" in f for f in failures):
+            click.echo(
+                "\nFull setup:\n"
+                "  eci config set api_token <TOKEN>\n"
+                "  eci config set zone_id auto\n"
+                "  eci config verify",
+                err=True,
+            )
         raise click.ClickException("required config fields missing")
 
     client = ECIClient(cfg)

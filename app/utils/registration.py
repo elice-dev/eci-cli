@@ -15,6 +15,7 @@ def register_list_get(
     default_columns: Sequence[str],
     filters: Sequence[FilterSpec],
     transform: Callable[[list[dict], AppContext], list[dict]] | None = None,
+    display_transform: Callable[[list[dict], AppContext], list[dict]] | None = None,
     column_labels: dict[str, str] | None = None,
 ) -> None:
     filter_names = [f.name for f in filters]
@@ -111,10 +112,13 @@ def register_list_get(
         items = getattr(app.client, list_fn)(**filter_kwargs)
         if transform is not None:
             items = transform(items, app)
+        fmt = kwargs.pop("fmt", "table")
+        if display_transform is not None and fmt != "json":
+            items = display_transform(items, app)
         render_list(
             items,
             default_columns=default_columns,
-            fmt=kwargs.pop("fmt", "table"),
+            fmt=fmt,
             query=kwargs.pop("query", None),
             resolver=app.resolver,
             column_labels=column_labels,

@@ -66,7 +66,10 @@ def resolve_create_pricing(
             f"no {effective_pt} pricing for instance type {instance_type!r}"
         )
     if len(pricings) > 1:
-        candidates = "\n  ".join(p["id"] for p in pricings)
+        candidates = "\n  ".join(
+            f"{p['id']}  (name={p.get('name', '')!r}, price/hr={p.get('price_per_hour', '?')} KRW)"
+            for p in pricings
+        )
         raise click.ClickException(
             f"multiple {effective_pt} pricings for instance type {instance_type!r}; "
             f"pass --pricing-id with one of:\n  {candidates}"

@@ -8,25 +8,45 @@ from click.testing import CliRunner
 from app.commands import configure as configure_module
 from app.commands.configure import (
     config_group,
+    config_init,
     config_set,
     config_show,
     config_verify,
-    configure,
 )
 
 
-def test_configure_writes_prompted_values(isolated_config_path):
+def test_config_init_writes_prompted_values(isolated_config_path, monkeypatch):
     _, path = isolated_config_path
+
+    fake_client = MagicMock()
+    fake_client.list_zones.return_value = [
+        {"id": "11111111-1111-1111-1111-111111111111", "name": "central-01-a"}
+    ]
+    monkeypatch.setattr(configure_module, "ECIClient", lambda cfg: fake_client)
+
     runner = CliRunner()
-    result = runner.invoke(
-        configure,
-        input="https://api.example/api\nsecret-token\nzone-uuid\n",
-    )
+    result = runner.invoke(config_init, input="1\nsecret-token\n")
     assert result.exit_code == 0, result.output
     saved = yaml.safe_load(path.read_text())
-    assert saved["api_endpoint"] == "https://api.example/api"
+    assert saved["api_endpoint"] == "https://portal.elice.cloud/api"
     assert saved["api_token"] == "secret-token"
-    assert saved["zone_id"] == "zone-uuid"
+    assert saved["zone_id"] == "11111111-1111-1111-1111-111111111111"
+
+
+def test_config_init_picks_gov_endpoint(isolated_config_path, monkeypatch):
+    _, path = isolated_config_path
+
+    fake_client = MagicMock()
+    fake_client.list_zones.return_value = [
+        {"id": "22222222-2222-2222-2222-222222222222", "name": "central-01-a"}
+    ]
+    monkeypatch.setattr(configure_module, "ECIClient", lambda cfg: fake_client)
+
+    runner = CliRunner()
+    result = runner.invoke(config_init, input="2\nsecret-token\n")
+    assert result.exit_code == 0, result.output
+    saved = yaml.safe_load(path.read_text())
+    assert saved["api_endpoint"] == "https://portal.gov.elice.cloud/api"
 
 
 def test_config_set_top_level_writes_string(isolated_config_path):

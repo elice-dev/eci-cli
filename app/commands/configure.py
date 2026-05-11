@@ -5,48 +5,99 @@ import yaml
 
 from ..client import ECIClient, ECIError
 from ..config import CONFIG_PATH, Config
-from ..utils import NameResolver, StdoutHelpGroup, print_help_if_no_subcommand
+from ..utils import (
+    NameResolver,
+    StdoutHelpGroup,
+    err_console,
+    print_help_if_no_subcommand,
+)
 from ..utils.name_resolver import is_uuid
 
+ENDPOINT_MINGAN = "https://portal.elice.cloud/api"
+ENDPOINT_GOV = "https://portal.gov.elice.cloud/api"
 
-@click.command(
-    "configure",
-    help=(
-        "Interactively configure ~/.eci/config.yaml.\n"
-        "\n"
-        "\b\n"
-        "Prompts for:\n"
-        "  api_endpoint  API base URL (default: https://portal.elice.cloud/api)\n"
-        "  api_token     Personal access token from the Elice Cloud portal\n"
-        "                (사용자 관리 → 사용자 액세스 토큰 → 토큰 생성)\n"
-        "  zone_id       Default zone UUID or name (run `eci zone` to list)\n"
-        "\n"
-        "For non-interactive setup, use `eci config set` instead.\n"
-        "\n"
-        "\b\n"
-        "Examples:\n"
-        "  eci configure\n"
-        "  ECI_API_TOKEN=<token> eci configure   # pre-fill from env\n"
-    ),
-)
-def configure() -> None:
-    cfg = Config.load()
-    cfg.api_endpoint = click.prompt("api_endpoint", default=cfg.api_endpoint)
-    cfg.api_token = click.prompt(
-        "api_token",
-        default=cfg.api_token or "",
-        hide_input=True,
-        show_default=False,
+
+def _prompt_endpoint(current: str) -> str:
+    click.echo("api_endpoint:")
+    click.echo(f"  1) 민간용 ({ENDPOINT_MINGAN})")
+    click.echo(f"  2) 공공기관용 ({ENDPOINT_GOV})")
+    default = "2" if current == ENDPOINT_GOV else "1"
+    choice = click.prompt(
+        "choice", type=click.Choice(["1", "2"]), default=default, show_choices=False
     )
-    cfg.zone_id = click.prompt("zone_id", default=cfg.zone_id or "")
-    cfg.save()
-    click.echo(f"saved {CONFIG_PATH}")
+    return ENDPOINT_MINGAN if choice == "1" else ENDPOINT_GOV
+
+
+def _auto_pick_zone(cfg: Config) -> str | None:
+    """Return a zone id from the API: silent for one zone, prompt for many."""
+    try:
+        zones = ECIClient(cfg).list_zones()
+    except ECIError as e:
+        err_console.print(f"[yellow]warning[/yellow]: could not list zones: {e}")
+        return None
+    if not zones:
+        err_console.print("[yellow]warning[/yellow]: no zones available")
+        return None
+    if len(zones) == 1:
+        z = zones[0]
+        click.echo(f"zone: {z.get('name')} (auto-selected, only zone available)")
+        return z["id"]
+    click.echo("zone:")
+    for i, z in enumerate(zones, 1):
+        click.echo(f"  {i}) {z.get('name')}")
+    choice = click.prompt(
+        "choice",
+        type=click.Choice([str(i) for i in range(1, len(zones) + 1)]),
+        default="1",
+        show_choices=False,
+    )
+    return zones[int(choice) - 1]["id"]
 
 
 @click.group("config", cls=StdoutHelpGroup, help="Inspect/edit the local config file.")
 @click.pass_context
 def config_group(ctx: click.Context) -> None:
     print_help_if_no_subcommand(ctx)
+
+
+@config_group.command(
+    "init",
+    help=(
+        "First-time setup of ~/.eci/config.yaml.\n"
+        "\n"
+        "Prompts for endpoint (1: 민간용 / 2: 공공기관용) and token, then\n"
+        "auto-selects the zone (single zone → silent; multiple → prompt).\n"
+        "\n"
+        "\b\n"
+        "Endpoints:\n"
+        f"  민간용 (default): {ENDPOINT_MINGAN}\n"
+        f"  공공기관용       : {ENDPOINT_GOV}\n"
+        "\n"
+        "Get a token at: Elice Cloud portal → 사용자 관리 →\n"
+        "사용자 액세스 토큰 → 토큰 생성\n"
+        "\n"
+        "For non-interactive setup (AI / scripts), use `eci config set` to\n"
+        "write each field directly.\n"
+    ),
+)
+def config_init() -> None:
+    cfg = Config.load()
+    cfg.api_endpoint = _prompt_endpoint(cfg.api_endpoint)
+    cfg.api_token = click.prompt(
+        "api_token",
+        default=cfg.api_token or "",
+        hide_input=True,
+        show_default=False,
+    )
+    if not cfg.api_token:
+        raise click.ClickException("api_token is required")
+
+    picked = _auto_pick_zone(cfg)
+    if picked:
+        cfg.zone_id = picked
+
+    cfg.save()
+    click.echo(f"saved {CONFIG_PATH}")
 
 
 @config_group.command(

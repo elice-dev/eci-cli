@@ -16,7 +16,7 @@ from .utils import (
     print_help_if_no_subcommand,
 )
 from .commands.compute import compute
-from .commands.configure import config_group, configure
+from .commands.configure import config_group
 from .commands.image import image
 from .commands.instance_type import instance_type
 from .commands.network import network
@@ -45,7 +45,7 @@ class _RootGroup(StdoutHelpGroup):
         "\n"
         "\b\n"
         "Get started:\n"
-        "  eci configure              # set api endpoint, token, default zone\n"
+        "  eci config init            # set api endpoint, token, default zone\n"
         "  eci config verify          # check auth + zone\n"
         "  eci compute vm launch ...  # see `eci compute vm launch -h`\n"
     ),
@@ -64,7 +64,7 @@ def cli(ctx: click.Context, zone_override: str | None) -> None:
 
     cfg = Config.load()
 
-    if ctx.invoked_subcommand in {"configure", "config"}:
+    if ctx.invoked_subcommand == "config":
         ctx.obj = None
         return
 
@@ -75,7 +75,7 @@ def cli(ctx: click.Context, zone_override: str | None) -> None:
 
     if not cfg.api_token:
         err_console.print(
-            "[red]error[/red]: api_token is not set. Run `eci configure`."
+            "[red]error[/red]: api_token is not set. Run `eci config init`."
         )
         sys.exit(2)
 
@@ -94,7 +94,6 @@ def cli(ctx: click.Context, zone_override: str | None) -> None:
     ctx.obj = AppContext(client=client)
 
 
-cli.add_command(configure)
 cli.add_command(config_group)
 
 cli.add_command(region)

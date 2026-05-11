@@ -43,7 +43,7 @@ Zscaler, etc.) without any extra setup.
 Set up API credentials and a default zone interactively:
 
 ```bash
-eci configure
+eci config init
 ```
 
 The config is stored at `~/.eci/config.yaml` with mode `0600`. Environment variables override the file:
@@ -258,7 +258,7 @@ app/
 │   ├── compute/          # vm (+ launch, ssh), cluster
 │   ├── network/          # vnet, subnet, nic, public_ip
 │   ├── storage/          # block (+ snapshot, scheduler), object (+ user, grant), pfs (+ member)
-│   ├── configure.py      # `eci configure` and `eci config ...`
+│   ├── configure.py      # `eci config init / set / show / verify`
 │   ├── vm_spec.py        # `eci vm-spec ...` (saved launch templates)
 │   └── image.py / instance_type.py / org.py / pricing.py / region.py / zone.py
 └── utils/

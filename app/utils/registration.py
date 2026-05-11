@@ -96,13 +96,15 @@ def register_list_get(
             r = resolver_for[n]
             if r and isinstance(v, str) and v not in ("null", "notnull"):
                 if n == "ids" or n.endswith("_ids"):
-                    v = ",".join(
+                    v = [
                         app.resolver.resolve(r, item.strip())
                         for item in v.split(",")
                         if item.strip()
-                    )
+                    ]
                 else:
                     v = app.resolver.resolve(r, v)
+            elif (n == "ids" or n.endswith("_ids")) and isinstance(v, str):
+                v = [item.strip() for item in v.split(",") if item.strip()]
             filter_kwargs[n] = v
 
         items = getattr(app.client, list_fn)(**filter_kwargs)

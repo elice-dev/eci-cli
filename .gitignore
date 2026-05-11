@@ -161,3 +161,4 @@ config.local.*
 entry.build/
 entry.dist/
 entry.onefile-build/
+nuitka-crash-report.xml

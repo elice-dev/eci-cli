@@ -12,6 +12,30 @@ def instance_type() -> None:
     pass
 
 
+_CATEGORY_ORDER = {"C": 0, "M": 1, "G": 2, "N": 3}
+
+
+def _sort_by_category(items: list[dict], app: AppContext) -> list[dict]:
+    """Sort by name-prefix category (C → M → G → N), then by cpu_vcore.
+
+    Backend returns instance types in roughly created_at order, which is
+    noisy for users. `C-` (CPU optimized) and `M-` (memory optimized) are
+    accelerator-free; `G-` (GPU) and `N-` (NPU) are accelerator-backed.
+    Group by that mental model first, then size within the group.
+    """
+
+    def key(it: dict) -> tuple[int, int, str]:
+        name = it.get("name") or ""
+        prefix = name.split("-", 1)[0] if name else ""
+        return (
+            _CATEGORY_ORDER.get(prefix, 99),
+            it.get("cpu_vcore") or 0,
+            name,
+        )
+
+    return sorted(items, key=key)
+
+
 def _summarize_devices(items: list[dict], app: AppContext) -> list[dict]:
     """Render the `devices` accelerator list as a compact summary for display.
 
@@ -51,6 +75,7 @@ register_list_get(
         FilterSpec("name_ilike"),
         FilterSpec("activated", type="bool"),
     ],
+    transform=_sort_by_category,
     display_transform=_summarize_devices,
     column_labels={"devices": "accelerators"},
 )

@@ -79,7 +79,7 @@ def test_cli_normal_path_creates_app_context(isolated_config_path, monkeypatch):
     fake_client.list_zones.return_value = [{"id": zone_uuid, "name": "kr-central"}]
     monkeypatch.setattr(cli_module, "ECIClient", lambda cfg: fake_client)
 
-    result = CliRunner().invoke(cli, ["zone", "--format", "json"])
+    result = CliRunner().invoke(cli, ["zone", "list", "--format", "json"])
     assert result.exit_code == 0, result.output
 
 
@@ -93,7 +93,7 @@ def test_cli_resolves_zone_name_from_config(isolated_config_path, monkeypatch):
     fake_client.list_zones.return_value = [{"id": "z-uuid", "name": "kr-central"}]
     monkeypatch.setattr(cli_module, "ECIClient", lambda cfg: fake_client)
 
-    result = CliRunner().invoke(cli, ["zone", "--format", "json"])
+    result = CliRunner().invoke(cli, ["zone", "list", "--format", "json"])
     assert result.exit_code == 0, result.output
     assert fake_client.config.zone_id == "z-uuid"
 
@@ -106,7 +106,9 @@ def test_cli_zone_override_resolves_name(isolated_config_path, monkeypatch):
     fake_client.list_zones.return_value = [{"id": "new-uuid", "name": "new-zone"}]
     monkeypatch.setattr(cli_module, "ECIClient", lambda cfg: fake_client)
 
-    result = CliRunner().invoke(cli, ["--zone", "new-zone", "zone", "--format", "json"])
+    result = CliRunner().invoke(
+        cli, ["--zone", "new-zone", "zone", "list", "--format", "json"]
+    )
     assert result.exit_code == 0, result.output
     assert fake_client.config.zone_id == "new-uuid"
 

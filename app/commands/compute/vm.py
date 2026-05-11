@@ -63,7 +63,7 @@ register_list_get(
 )
 
 
-@vm.command("__get__", hidden=True)
+@vm.command("get", help="Get a single VM with attached disks, NICs, and IPs.")
 @click.argument("name_or_id")
 @click.option(
     "--format",

@@ -480,7 +480,7 @@ def test_vm_list_includes_attached_public_ips_in_table():
         {"id": "ip-3", "ip": "9.9.9.9", "attached_network_interface_id": "nic-4"},
     ]
 
-    result = CliRunner().invoke(vm, [], obj=_app(client))
+    result = CliRunner().invoke(vm, ["list"], obj=_app(client))
     assert result.exit_code == 0, result.output
     assert "1.2.3.4" in result.output
     assert "5.6.7.8" in result.output
@@ -498,7 +498,7 @@ def test_vm_list_json_attaches_public_ip_field():
         {"id": "ip-1", "ip": "1.2.3.4", "attached_network_interface_id": "nic-1"}
     ]
 
-    result = CliRunner().invoke(vm, ["--format", "json"], obj=_app(client))
+    result = CliRunner().invoke(vm, ["list", "--format", "json"], obj=_app(client))
     assert result.exit_code == 0, result.output
     data = json.loads(result.output)
     assert data[0]["public_ip"] == "1.2.3.4"
@@ -510,7 +510,7 @@ def test_vm_list_handles_no_public_ips():
     client.list_nics.return_value = []
     client.list_public_ips.return_value = []
 
-    result = CliRunner().invoke(vm, [], obj=_app(client))
+    result = CliRunner().invoke(vm, ["list"], obj=_app(client))
     assert result.exit_code == 0, result.output
 
 
@@ -518,7 +518,7 @@ def test_vm_list_skips_lookups_when_empty():
     client = MagicMock()
     client.list_vms.return_value = []
 
-    result = CliRunner().invoke(vm, [], obj=_app(client))
+    result = CliRunner().invoke(vm, ["list"], obj=_app(client))
     assert result.exit_code == 0, result.output
     client.list_nics.assert_not_called()
     client.list_public_ips.assert_not_called()

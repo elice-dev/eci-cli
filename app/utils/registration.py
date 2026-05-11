@@ -40,6 +40,7 @@ def register_list_get(
 
     resolver_for: dict[str, str | None] = {f.name: _resolver_for(f) for f in filters}
 
+    list_params: list[click.Parameter] = []
     for spec in filters:
         flag_basis = spec.name[:-3] if spec.name.endswith("_id") else spec.name
         is_plural = spec.name == "ids" or spec.name.endswith("_ids")
@@ -56,7 +57,7 @@ def register_list_get(
         else:
             help_text = spec.help or f"Filter by {spec.name}."
 
-        group.params.append(
+        list_params.append(
             click.Option(
                 ["--" + flag_basis.replace("_", "-"), spec.name],
                 default=None,
@@ -65,7 +66,7 @@ def register_list_get(
             )
         )
 
-    group.params.append(
+    list_params.append(
         click.Option(
             ["--format", "fmt"],
             type=click.Choice(["table", "json", "csv"], case_sensitive=False),
@@ -74,7 +75,7 @@ def register_list_get(
             help="Output format.",
         )
     )
-    group.params.append(
+    list_params.append(
         click.Option(
             ["--query"],
             default=None,
@@ -84,9 +85,6 @@ def register_list_get(
 
     @click.pass_context
     def list_callback(ctx: click.Context, **kwargs: Any) -> None:
-        if ctx.invoked_subcommand is not None:
-            return
-
         app: AppContext = ctx.obj
         filter_kwargs: dict[str, Any] = {}
 
@@ -124,9 +122,15 @@ def register_list_get(
             column_labels=column_labels,
         )
 
-    group.callback = list_callback
+    list_cmd = click.Command(
+        "list",
+        params=list_params,
+        callback=list_callback,
+        help=f"List {group.name}s.",
+    )
+    group.add_command(list_cmd)
 
-    @group.command("__get__", hidden=True)
+    @group.command("get", help=f"Get a single {group.name} by name or UUID.")
     @click.argument("name_or_id")
     @click.option(
         "--format",

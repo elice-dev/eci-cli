@@ -22,7 +22,7 @@ def test_zone_list_default_table_format():
     client.list_regions.return_value = [{"id": "r1", "name": "kr"}]
 
     runner = CliRunner()
-    result = runner.invoke(zone, [], obj=_app(client))
+    result = runner.invoke(zone, ["list"], obj=_app(client))
     assert result.exit_code == 0, result.output
     assert "kr-central" in result.output
     assert "kr-north" in result.output
@@ -37,7 +37,7 @@ def test_zone_list_json_format_resolves_region():
     client.list_regions.return_value = [{"id": "r1", "name": "kr"}]
 
     runner = CliRunner()
-    result = runner.invoke(zone, ["--format", "json"], obj=_app(client))
+    result = runner.invoke(zone, ["list", "--format", "json"], obj=_app(client))
     assert result.exit_code == 0, result.output
     data = json.loads(result.output)
     assert data[0]["region"] == "kr"
@@ -50,7 +50,7 @@ def test_zone_list_passes_filter_after_resolving_region_name():
     client.list_zones.return_value = []
 
     runner = CliRunner()
-    result = runner.invoke(zone, ["--region", "kr"], obj=_app(client))
+    result = runner.invoke(zone, ["list", "--region", "kr"], obj=_app(client))
     assert result.exit_code == 0, result.output
     client.list_zones.assert_called_once()
     assert client.list_zones.call_args.kwargs["region_id"] == "r-uuid"

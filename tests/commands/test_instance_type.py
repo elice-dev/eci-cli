@@ -19,7 +19,7 @@ def test_instance_type_list_with_activated_filter(mock_client, app_obj):
         }
     ]
     result = CliRunner().invoke(
-        instance_type, ["--activated", "true", "--format", "json"], obj=app_obj
+        instance_type, ["list", "--activated", "true", "--format", "json"], obj=app_obj
     )
     assert result.exit_code == 0, result.output
     mock_client.list_instance_types.assert_called_once()
@@ -37,7 +37,9 @@ def test_instance_type_json_keeps_raw_devices_list(mock_client, app_obj):
             "activated": True,
         }
     ]
-    result = CliRunner().invoke(instance_type, ["--format", "json"], obj=app_obj)
+    result = CliRunner().invoke(
+        instance_type, ["list", "--format", "json"], obj=app_obj
+    )
     assert result.exit_code == 0, result.output
     data = json.loads(result.output)
     assert data[0]["devices"] == [
@@ -65,7 +67,7 @@ def test_instance_type_table_summarizes_devices(mock_client, app_obj):
             "activated": True,
         },
     ]
-    result = CliRunner().invoke(instance_type, ["--format", "csv"], obj=app_obj)
+    result = CliRunner().invoke(instance_type, ["list", "--format", "csv"], obj=app_obj)
     assert result.exit_code == 0, result.output
     lines = result.output.strip().splitlines()
     assert lines[0] == "name,cpu_vcore,memory_gib,accelerators"

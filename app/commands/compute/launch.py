@@ -73,8 +73,10 @@ def _ensure_default_subnet(app: AppContext) -> str:
         "\n"
         "\b\n"
         "Required: --name. Other launch fields are prompted with sensible\n"
-        "defaults if not passed (instance-type=C-2, image=Ubuntu 24.04 LTS\n"
-        "(Standard), size-gib=20). Pass --password to skip the prompt.\n"
+        "defaults if not passed. For CPU instance types (C-/M-) the default\n"
+        "image is Ubuntu 24.04 LTS (Standard) with 20 GiB; for GPU/NPU\n"
+        "instance types (G-/N-) the default is Ubuntu 24.04 LTS (AI/GPU)\n"
+        "with 50 GiB (NVIDIA drivers + CUDA pre-installed).\n"
         "\n"
         "If --subnet is omitted, a default vnet/subnet ('eci-default-vnet' /\n"
         "'eci-default-subnet') is created on first use and reused after.\n"
@@ -253,10 +255,34 @@ def vm_launch(
     if not block_storage:
         if not instance_type and not pricing_id:
             instance_type = click.prompt("instance type", default="C-2")
+
+        # Pick image/size defaults based on whether the chosen instance type
+        # has accelerators — GPU/NPU types need the AI/GPU image (NVIDIA
+        # drivers + CUDA pre-installed), CPU types get the lighter Standard.
+        wants_accelerator = False
+        if instance_type and not image:
+            try:
+                its = app.client.list_instance_types(name_ilike=instance_type)
+                match = next(
+                    (it for it in its if it.get("name") == instance_type), None
+                )
+                if match and match.get("devices"):
+                    wants_accelerator = True
+            except Exception:
+                pass
+
         if not image:
-            image = click.prompt("image", default="Ubuntu 24.04 LTS (Standard)")
+            default_image = (
+                "Ubuntu 24.04 LTS (AI/GPU)"
+                if wants_accelerator
+                else "Ubuntu 24.04 LTS (Standard)"
+            )
+            image = click.prompt("image", default=default_image)
         if size_gib is None:
-            size_gib = click.prompt("root disk size (GiB)", default=20, type=int)
+            default_size = 50 if wants_accelerator else 20
+            size_gib = click.prompt(
+                "root disk size (GiB)", default=default_size, type=int
+            )
 
     if not password:
         click.echo(

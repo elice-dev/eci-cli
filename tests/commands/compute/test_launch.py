@@ -226,7 +226,7 @@ def test_launch_prompts_for_missing_fields_with_defaults(
 ):
     _stub_full_launch(mock_client)
     mock_client.list_instance_types.return_value = [
-        {"id": "it-uuid", "name": "C-2"}
+        {"id": "it-uuid", "name": "C-2", "devices": []}
     ]
     mock_client.list_images.return_value = [
         {"id": "img-uuid", "name": "Ubuntu 24.04 LTS (Standard)"}
@@ -245,6 +245,35 @@ def test_launch_prompts_for_missing_fields_with_defaults(
     assert "instance type [C-2]" in result.output
     assert "image [Ubuntu 24.04 LTS (Standard)]" in result.output
     assert "root disk size (GiB) [20]" in result.output
+
+
+def test_launch_prompts_pick_gpu_defaults_for_accelerator_instance(
+    mock_client, app_obj, isolated_config_path
+):
+    _stub_full_launch(mock_client)
+    mock_client.list_instance_types.return_value = [
+        {
+            "id": "it-gpu",
+            "name": "G-NHHS-80",
+            "devices": ["nvidia_h100_80gb_sxm"],
+        }
+    ]
+    mock_client.list_images.return_value = [
+        {"id": "img-gpu", "name": "Ubuntu 24.04 LTS (AI/GPU)"}
+    ]
+    mock_client.list_subnets.return_value = [
+        {"id": "22222222-2222-2222-2222-222222222222", "name": "eci-default-subnet"}
+    ]
+
+    result = CliRunner().invoke(
+        vm_launch,
+        ["--name", "ml-1", "--instance-type", "G-NHHS-80", "--password", "pw"],
+        input="\n\n",
+        obj=app_obj,
+    )
+    assert result.exit_code == 0, result.output
+    assert "image [Ubuntu 24.04 LTS (AI/GPU)]" in result.output
+    assert "root disk size (GiB) [50]" in result.output
 
 
 def test_launch_without_subnet_reuses_existing_default(

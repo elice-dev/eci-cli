@@ -18,12 +18,20 @@ ENDPOINT_GOV = "https://portal.gov.elice.cloud/api"
 
 
 def _prompt_endpoint(current: str) -> str:
-    click.echo("api_endpoint:")
-    click.echo(f"  1) 민간용 ({ENDPOINT_MINGAN})")
-    click.echo(f"  2) 공공기관용 ({ENDPOINT_GOV})")
     default = "2" if current == ENDPOINT_GOV else "1"
+    click.echo("api_endpoint:")
+    click.echo(
+        f"  1) 민간용 ({ENDPOINT_MINGAN})" + ("  (default)" if default == "1" else "")
+    )
+    click.echo(
+        f"  2) 공공기관용 ({ENDPOINT_GOV})" + ("  (default)" if default == "2" else "")
+    )
     choice = click.prompt(
-        "choice", type=click.Choice(["1", "2"]), default=default, show_choices=False
+        "choice",
+        type=click.Choice(["1", "2"]),
+        default=default,
+        show_choices=False,
+        show_default=False,
     )
     return ENDPOINT_MINGAN if choice == "1" else ENDPOINT_GOV
 
@@ -44,12 +52,14 @@ def _auto_pick_zone(cfg: Config) -> str | None:
         return z["id"]
     click.echo("zone:")
     for i, z in enumerate(zones, 1):
-        click.echo(f"  {i}) {z.get('name')}")
+        suffix = "  (default)" if i == 1 else ""
+        click.echo(f"  {i}) {z.get('name')}{suffix}")
     choice = click.prompt(
         "choice",
         type=click.Choice([str(i) for i in range(1, len(zones) + 1)]),
         default="1",
         show_choices=False,
+        show_default=False,
     )
     return zones[int(choice) - 1]["id"]
 

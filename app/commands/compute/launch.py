@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import sys
 from functools import partial
 from typing import Any, Callable
 
@@ -14,6 +15,35 @@ from ...client import (
 from ...config import Config
 from ...utils import AppContext, emit_action_result
 from ._pricing import PriceType, resolve_create_pricing
+
+
+def _is_tty() -> bool:
+    return sys.stdin.isatty()
+
+
+def _prompt_or_default(label: str, default: Any, *, type: Any = None) -> Any:
+    """Prompt with default in a TTY; silently apply default otherwise.
+
+    Mirrors `click.prompt(label, default=...)` but skips the prompt for
+    non-interactive callers (AI / scripts / CI) where stdin EOF would
+    otherwise abort the command.
+    """
+    if _is_tty():
+        return click.prompt(label, default=default, type=type)
+    return default
+
+
+def _require_in_non_tty(label: str, flag: str) -> None:
+    """Raise an actionable UsageError when a required field is missing
+    in a non-interactive context.
+
+    Use this in place of click.prompt() for fields that have no safe
+    default (e.g. --password). UsageError exits 2 (CLI usage convention)."""
+    raise click.UsageError(
+        f"--{flag} is required in non-interactive mode "
+        f"(stdin is not a TTY).\n"
+        f"  Pass --{flag} <{label}>, or run in an interactive terminal."
+    )
 
 
 def _well_known_pricing_id(app: AppContext, *, kind: str, name: str) -> str:
@@ -72,11 +102,15 @@ def _ensure_default_subnet(app: AppContext) -> str:
         "Launch a VM end-to-end (VM + disk + NIC + IP + start).\n"
         "\n"
         "\b\n"
-        "Required: --name. Other launch fields are prompted with sensible\n"
-        "defaults if not passed. For CPU instance types (C-/M-) the default\n"
-        "image is Ubuntu 24.04 LTS (Standard) with 20 GiB; for GPU/NPU\n"
-        "instance types (G-/N-) the default is Ubuntu 24.04 LTS (AI/GPU)\n"
-        "with 50 GiB (NVIDIA drivers + CUDA pre-installed).\n"
+        "Required: --name (and --password unless --no-start).\n"
+        "\n"
+        "Other launch fields use sensible defaults. In a terminal they\n"
+        "prompt with the default pre-filled; in non-interactive callers\n"
+        "(AI / scripts / CI) the default is applied silently. For CPU\n"
+        "instance types (C-/M-) the default image is Ubuntu 24.04 LTS\n"
+        "(Standard) with 20 GiB; for GPU/NPU instance types (G-/N-) the\n"
+        "default is Ubuntu 24.04 LTS (AI/GPU) with 50 GiB (NVIDIA drivers\n"
+        "+ CUDA pre-installed).\n"
         "\n"
         "If --subnet is omitted, a default vnet/subnet ('eci-default-vnet' /\n"
         "'eci-default-subnet') is created on first use and reused after.\n"
@@ -254,7 +288,7 @@ def vm_launch(
 
     if not block_storage:
         if not instance_type and not pricing_id:
-            instance_type = click.prompt("instance type", default="C-2")
+            instance_type = _prompt_or_default("instance type", default="C-2")
 
         # Pick image/size defaults based on whether the chosen instance type
         # has accelerators — GPU/NPU types need the AI/GPU image (NVIDIA
@@ -277,14 +311,16 @@ def vm_launch(
                 if wants_accelerator
                 else "Ubuntu 24.04 LTS (Standard)"
             )
-            image = click.prompt("image", default=default_image)
+            image = _prompt_or_default("image", default=default_image)
         if size_gib is None:
             default_size = 50 if wants_accelerator else 20
-            size_gib = click.prompt(
+            size_gib = _prompt_or_default(
                 "root disk size (GiB)", default=default_size, type=int
             )
 
     if not password:
+        if not _is_tty():
+            _require_in_non_tty("PASSWORD", "password")
         click.echo(
             "password (3+ char classes, no 3+ char sequence)",
             err=True,
@@ -494,8 +530,10 @@ def vm_launch(
                 explicit["subnet"] is not None and explicit["subnet"] != spec_subnet,
             )
         )
-        if has_override and click.confirm(
-            "Save these arguments as a new vm-spec?", default=False
+        if (
+            has_override
+            and _is_tty()
+            and click.confirm("Save these arguments as a new vm-spec?", default=False)
         ):
             new_name = click.prompt("spec name")
             cfg.vm_defaults = cfg.vm_defaults or {}

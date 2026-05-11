@@ -222,8 +222,9 @@ def test_launch_nic_conflicts_with_subnet(mock_client, app_obj, isolated_config_
 
 
 def test_launch_prompts_for_missing_fields_with_defaults(
-    mock_client, app_obj, isolated_config_path
+    mock_client, app_obj, isolated_config_path, monkeypatch
 ):
+    monkeypatch.setattr("app.commands.compute.launch._is_tty", lambda: True)
     _stub_full_launch(mock_client)
     mock_client.list_instance_types.return_value = [
         {"id": "it-uuid", "name": "C-2", "devices": []}
@@ -247,9 +248,60 @@ def test_launch_prompts_for_missing_fields_with_defaults(
     assert "root disk size (GiB) [20]" in result.output
 
 
-def test_launch_prompts_pick_gpu_defaults_for_accelerator_instance(
+def test_launch_silently_uses_defaults_in_non_tty(
     mock_client, app_obj, isolated_config_path
 ):
+    """Non-interactive callers (AI / scripts / CI) get defaults silently."""
+    _stub_full_launch(mock_client)
+    mock_client.list_instance_types.return_value = [
+        {"id": "it-uuid", "name": "C-2", "devices": []}
+    ]
+    mock_client.list_images.return_value = [
+        {"id": "img-uuid", "name": "Ubuntu 24.04 LTS (Standard)"}
+    ]
+    mock_client.list_subnets.return_value = [
+        {"id": "11111111-1111-1111-1111-111111111111", "name": "eci-default-subnet"}
+    ]
+
+    result = CliRunner().invoke(
+        vm_launch,
+        ["--name", "demo", "--password", "pw"],
+        obj=app_obj,
+    )
+    assert result.exit_code == 0, result.output
+    assert "instance type [" not in result.output
+    assert "image [" not in result.output
+    mock_client.create_vm.assert_called_once()
+
+
+def test_launch_errors_in_non_tty_when_password_missing(
+    mock_client, app_obj, isolated_config_path
+):
+    """Password has no safe default; non-TTY should error, not abort."""
+    _stub_full_launch(mock_client)
+    mock_client.list_instance_types.return_value = [
+        {"id": "it-uuid", "name": "C-2", "devices": []}
+    ]
+    mock_client.list_images.return_value = [
+        {"id": "img-uuid", "name": "Ubuntu 24.04 LTS (Standard)"}
+    ]
+    mock_client.list_subnets.return_value = [
+        {"id": "11111111-1111-1111-1111-111111111111", "name": "eci-default-subnet"}
+    ]
+
+    result = CliRunner().invoke(
+        vm_launch,
+        ["--name", "demo"],
+        obj=app_obj,
+    )
+    assert result.exit_code != 0
+    assert "--password is required" in result.output
+
+
+def test_launch_prompts_pick_gpu_defaults_for_accelerator_instance(
+    mock_client, app_obj, isolated_config_path, monkeypatch
+):
+    monkeypatch.setattr("app.commands.compute.launch._is_tty", lambda: True)
     _stub_full_launch(mock_client)
     mock_client.list_instance_types.return_value = [
         {
@@ -443,8 +495,9 @@ def test_launch_spec_no_override_does_not_prompt_to_save(
 
 
 def test_launch_spec_with_override_prompts_to_save(
-    mock_client, app_obj, isolated_config_path
+    mock_client, app_obj, isolated_config_path, monkeypatch
 ):
+    monkeypatch.setattr("app.commands.compute.launch._is_tty", lambda: True)
     _, path = isolated_config_path
     _write_vm_defaults(path, {"default": _FULL_SPEC})
     _stub_full_launch(mock_client)

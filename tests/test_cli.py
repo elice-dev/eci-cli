@@ -159,14 +159,29 @@ def test_main_handles_click_exception(monkeypatch):
     assert exc.value.code == 1
 
 
-def test_main_handles_abort(monkeypatch):
+def test_main_handles_abort_in_tty(monkeypatch):
     def boom():
         raise click.exceptions.Abort()
 
     _patch_cli_main(monkeypatch, boom)
+    monkeypatch.setattr("sys.stdin.isatty", lambda: True)
     with pytest.raises(SystemExit) as exc:
         main()
     assert exc.value.code == 130
+
+
+def test_main_handles_abort_in_non_tty(monkeypatch):
+    """Abort in non-TTY (AI / scripts / CI) exits with 2 (CLI usage error),
+    not 130 (SIGINT — misleading: looks like user pressed Ctrl+C)."""
+
+    def boom():
+        raise click.exceptions.Abort()
+
+    _patch_cli_main(monkeypatch, boom)
+    monkeypatch.setattr("sys.stdin.isatty", lambda: False)
+    with pytest.raises(SystemExit) as exc:
+        main()
+    assert exc.value.code == 2
 
 
 def test_main_handles_eci_error(monkeypatch):

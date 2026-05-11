@@ -15,6 +15,7 @@ from .utils import (
     err_console,
     print_help_if_no_subcommand,
 )
+from .utils.error_humanizer import render_eci_error_to_stderr
 from .commands.compute import compute
 from .commands.config import config_group
 from .commands.image import image
@@ -45,9 +46,10 @@ class _RootGroup(StdoutHelpGroup):
         "\n"
         "\b\n"
         "Get started:\n"
-        "  eci config init            # set api endpoint, token, default zone\n"
-        "  eci config verify          # check auth + zone\n"
-        "  eci compute vm launch ...  # see `eci compute vm launch -h`\n"
+        "  eci config init       # interactive\n"
+        "  eci config set        # non-interactive (AI / scripts / CI) — see -h\n"
+        "  eci config verify     # check auth + zone\n"
+        "  eci compute vm launch # see -h\n"
     ),
     context_settings={"help_option_names": ["-h", "--help", "-help"]},
 )
@@ -117,10 +119,17 @@ def main() -> None:
         e.show()
         sys.exit(e.exit_code)
     except click.exceptions.Abort:
-        err_console.print("[yellow]aborted[/yellow]")
-        sys.exit(130)
+        if sys.stdin.isatty():
+            err_console.print("[yellow]aborted[/yellow]")
+            sys.exit(130)
+        err_console.print(
+            "[red]aborted[/red]: a required value was missing and stdin "
+            "is not a TTY (AI / scripts / CI cannot answer prompts). "
+            "Pass the value as a flag, or run in an interactive terminal."
+        )
+        sys.exit(2)
     except ECIError as e:
-        err_console.print(f"[red]API error[/red]: {e}")
+        render_eci_error_to_stderr(e, err_console)
         sys.exit(2)
     except BrokenPipeError:
         sys.exit(0)

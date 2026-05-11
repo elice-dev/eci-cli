@@ -122,10 +122,21 @@ def config_init() -> None:
         "  vm_defaults.<spec>.<field>\n"
         "\n"
         "\b\n"
-        "Examples:\n"
-        "  eci config set api_token <TOKEN>\n"
-        "  eci config set zone_id <ZONE_NAME_OR_UUID>\n"
+        "Full non-interactive setup (AI / scripts / CI):\n"
         "  eci config set api_endpoint https://portal.elice.cloud/api\n"
+        "  eci config set api_token <TOKEN>\n"
+        "  eci config set zone_id auto          # single-zone org → resolved\n"
+        "                                       # multi-zone org → error w/ list\n"
+        "  eci config verify\n"
+        "\n"
+        "\b\n"
+        "Get a token at: Elice Cloud portal → 사용자 관리 →\n"
+        "사용자 액세스 토큰 → 토큰 생성\n"
+        "\n"
+        "\b\n"
+        "Update a single field:\n"
+        "  eci config set api_token <NEW_TOKEN>\n"
+        "  eci config set zone_id central-01-a\n"
     ),
 )
 @click.argument("path")
@@ -133,18 +144,51 @@ def config_init() -> None:
 def config_set(path: str, value: str) -> None:
     cfg = Config.load()
 
+    if path == "zone_id" and value == "auto":
+        value = _resolve_zone_auto(cfg)
+
     try:
         cfg.set_path(path, value)
     except KeyError as e:
         raise click.ClickException(str(e).strip("'"))
 
     cfg.save()
-    click.echo(f"set {path}")
+    click.echo(f"set {path}" + (f" = {value}" if path == "zone_id" else ""))
+
+
+def _resolve_zone_auto(cfg: Config) -> str:
+    """Resolve zone_id=auto: return single zone's id, or error with candidate list."""
+    if not cfg.api_token:
+        raise click.ClickException(
+            "zone_id=auto needs api_token set first. "
+            "Run: eci config set api_token <TOKEN>"
+        )
+
+    try:
+        zones = ECIClient(cfg).list_zones()
+    except ECIError as e:
+        raise click.ClickException(f"could not list zones: {e}") from None
+
+    if not zones:
+        raise click.ClickException("no zones available for this token")
+
+    if len(zones) == 1:
+        return zones[0]["id"]
+
+    names = "\n".join(f"  {z.get('name')}" for z in zones)
+    raise click.ClickException(
+        f"multiple zones available; pick one:\n{names}\n"
+        "Run: eci config set zone_id <NAME>"
+    )
 
 
 @config_group.command("show", help="Print the current config (yaml).")
 def config_show() -> None:
     cfg = Config.load()
+    if CONFIG_PATH.exists():
+        click.echo(f"# config file: {CONFIG_PATH}")
+    else:
+        click.echo(f"# config file: {CONFIG_PATH} (not found — showing defaults)")
     click.echo(
         yaml.safe_dump(
             {
@@ -170,6 +214,8 @@ def config_verify() -> None:
         if not getattr(cfg, field):
             failures.append(f"{field}: not set")
             click.echo(f"  ✗ {field}: not set", err=True)
+            if field == "zone_id" and cfg.api_token:
+                click.echo("    hint: eci config set zone_id auto", err=True)
 
     if failures:
         raise click.ClickException("required config fields missing")

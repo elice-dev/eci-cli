@@ -16,19 +16,24 @@ _CATEGORY_ORDER = {"C": 0, "M": 1, "G": 2, "N": 3}
 
 
 def _sort_by_category(items: list[dict], app: AppContext) -> list[dict]:
-    """Sort by name-prefix category (C → M → G → N), then by cpu_vcore.
+    """Sort by category, then by accelerator family, then by count/size.
 
     Backend returns instance types in roughly created_at order, which is
-    noisy for users. `C-` (CPU optimized) and `M-` (memory optimized) are
-    accelerator-free; `G-` (GPU) and `N-` (NPU) are accelerator-backed.
-    Group by that mental model first, then size within the group.
+    noisy for users. Group by name-prefix category (C → M → G → N) first,
+    then — for accelerator-backed types — by accelerator kind so the same
+    model stays clustered (A100 1x / A100 2x / A100 4x ... before B200 ...
+    before H100 ...). CPU/Memory families have empty devices and fall
+    through to cpu_vcore ordering.
     """
 
-    def key(it: dict) -> tuple[int, int, str]:
+    def key(it: dict) -> tuple[int, str, int, int, str]:
         name = it.get("name") or ""
         prefix = name.split("-", 1)[0] if name else ""
+        devices = it.get("devices") or []
         return (
             _CATEGORY_ORDER.get(prefix, 99),
+            devices[0] if devices else "",
+            len(devices),
             it.get("cpu_vcore") or 0,
             name,
         )

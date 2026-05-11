@@ -10,22 +10,34 @@ backoff, `Retry-After` honored).
 
 ## Installation
 
-### From a release (recommended) — single binary, no Python required
+### From a release (recommended) — Linux x86_64
 
-Each tagged release publishes a self-contained native binary for
-**Linux x86_64** (built via Nuitka). Pick the asset from the GitLab release
-page, drop it on `PATH`, and run.
+Each tagged release publishes a directory bundle as
+`eci-linux-x86_64-<tag>.tar.gz` (Nuitka `--standalone`, AWS CLI v2-style:
+the launcher and its dependencies live under one directory, with a symlink
+on `PATH`). Warm startup is ~85ms.
+
+The repo ships an installer that downloads the right tarball for your
+OS/arch, verifies its sha256, unpacks the bundle, and symlinks the launcher
+into `PATH`. Run it with `API_BASE` pointing at the host that serves the
+release assets:
 
 ```bash
-# Linux (x86_64)
-curl -L -o eci <release-asset-url>/eci-linux-x86_64-vX.Y.Z
-chmod +x eci && sudo mv eci /usr/local/bin/
+# When the release host is wired up:
+curl -fsSL https://api.elice.cloud/cli/install.sh | sh
+
+# Or from a checked-out repo (for now, until /cli/install.sh is hosted):
+API_BASE=<release-host> sh scripts/install.sh
 ```
 
-For macOS or Windows, install from source (next section) or build a binary
-locally with `make build-binary`.
+By default the bundle is installed to `/usr/local/eci-cli` with the
+launcher symlinked to `/usr/local/bin/eci` (falls back to `~/.local/...`
+without sudo if those paths are not writable). Override with
+`ROOT_DIR=...` and `INSTALL_DIR=...`.
 
 ### From source (Python 3.11+)
+
+For macOS / Windows, or when you want to develop against the CLI:
 
 ```bash
 git clone <repo-url> eci-cli
@@ -34,8 +46,26 @@ uv sync
 uv run eci --help
 ```
 
+To build a directory bundle locally (same shape the installer expects):
+
+```bash
+make build-standalone
+# Output: dist/entry.dist/   (launcher: dist/entry.dist/eci)
+mkdir -p ~/.local/eci-cli ~/.local/bin
+cp -R dist/entry.dist/. ~/.local/eci-cli/
+ln -sf ~/.local/eci-cli/eci ~/.local/bin/eci
+```
+
 `make build` produces a cross-platform wheel under `dist/` for ad-hoc local
-distribution. CI does not publish wheels — only native binaries.
+distribution. CI does not publish wheels — only the standalone tarball.
+
+### Corporate SSL inspection
+
+The CLI calls `truststore.inject_into_ssl()` at startup so requests trusts
+whatever root CAs are installed in the OS trust store (Keychain on macOS,
+`ca-certificates` on Linux, Cert Store on Windows). This makes
+`eci configure verify` work behind corporate SSL inspection (Netskope,
+Zscaler, etc.) without any extra setup.
 
 ## Configuration
 
@@ -106,24 +136,35 @@ eci org usage
 ### Compute
 
 ```bash
-# End-to-end VM provisioning (VM + disk + NIC + IP + boot)
+# Easiest first launch — everything else is prompted with defaults
+# (instance-type=C-2, image+size auto-selected for CPU vs GPU instance,
+#  a default vnet/subnet 'eci-default-vnet' is auto-created and reused)
+eci compute vm launch --name demo
+
+# Fully non-interactive (recommended for scripts / AI agents)
 eci compute vm launch \
   --name demo \
-  --instance-type M-8 \
-  --image ubuntu-22.04 \
-  --size-gib 100 \
-  --subnet default
+  --instance-type C-2 \
+  --image 'Ubuntu 24.04 LTS (Standard)' \
+  --size-gib 20 \
+  --password 'Vk7m@p2qLn5!'
 
-# Spot price type
-eci compute vm launch --name demo --instance-type M-8 --price-type spot \
-  --image ubuntu-22.04 --size-gib 100 --subnet default
+# GPU instance — defaults auto-pick the AI/GPU image (NVIDIA drivers + CUDA)
+eci compute vm launch --name ml-1 --instance-type G-NHHS-80 \
+  --password 'Vk7m@p2qLn5!'
 
-# Or pick a pricing UUID directly
+# Spot price
+eci compute vm launch --name demo --instance-type C-2 --price-type spot \
+  --image 'Ubuntu 24.04 LTS (Standard)' --size-gib 20 \
+  --password 'Vk7m@p2qLn5!'
+
+# Pick a pricing UUID directly (when --instance-type has multiple ondemand pricings)
 eci compute vm launch --name demo --pricing-id <UUID> \
-  --image ubuntu-22.04 --size-gib 100 --subnet default
+  --image 'Ubuntu 24.04 LTS (Standard)' --size-gib 20 \
+  --password 'Vk7m@p2qLn5!'
 
 # Reuse a saved spec (see "Saved VM specs" section)
-eci compute vm launch --name demo2 --spec default
+eci compute vm launch --name demo2 --spec default --password '...'
 
 # Lifecycle
 eci compute vm                  # list
@@ -196,6 +237,7 @@ make format              # ruff format + ruff check --fix + mypy
 make check               # CI checks (no auto-fix)
 make test                # pytest with coverage
 make build               # sdist + wheel into dist/
+make build-standalone    # Nuitka --standalone bundle into dist/entry.dist/
 ```
 
 Tests live under [tests/](tests/) and mirror the [app/](app/) layout. Run a subset:

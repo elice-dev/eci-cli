@@ -54,6 +54,41 @@ def test_pricing_hides_pricings_for_deactivated_instance_types(mock_client, app_
     assert [p["id"] for p in data] == ["p1"]
 
 
+def test_pricing_sort_puts_vm_allocation_first(mock_client, app_obj):
+    mock_client.list_pricings.return_value = [
+        {
+            "id": "ip-1",
+            "name": "Public IP",
+            "resource_kind": "public_ip",
+            "pricing_type": "ondemand",
+            "price_per_hour": 1,
+            "activated": True,
+        },
+        {
+            "id": "blk-1",
+            "name": "Block Storage",
+            "resource_kind": "block_storage",
+            "pricing_type": "ondemand",
+            "price_per_hour": 1,
+            "activated": True,
+        },
+        {
+            "id": "vm-1",
+            "name": "M-8",
+            "resource_kind": "vm_allocation",
+            "resource_id": "it-uuid",
+            "pricing_type": "ondemand",
+            "price_per_hour": 100,
+            "activated": True,
+        },
+    ]
+    mock_client.list_instance_types.return_value = [{"id": "it-uuid", "name": "M-8"}]
+    result = CliRunner().invoke(pricing, ["--format", "json"], obj=app_obj)
+    assert result.exit_code == 0, result.output
+    data = json.loads(result.output)
+    assert [p["id"] for p in data] == ["vm-1", "blk-1", "ip-1"]
+
+
 def test_pricing_filter_resource_ids_resolved(mock_client, app_obj):
     mock_client.list_instance_types.return_value = [
         {"id": "it-uuid", "name": "M-8"},

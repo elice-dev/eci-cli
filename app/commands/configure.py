@@ -18,6 +18,7 @@ from ..utils.name_resolver import is_uuid
         "Prompts for:\n"
         "  api_endpoint  API base URL (default: https://portal.elice.cloud/api)\n"
         "  api_token     Personal access token from the Elice Cloud portal\n"
+        "                (사용자 관리 → 사용자 액세스 토큰 → 토큰 생성)\n"
         "  zone_id       Default zone UUID or name (run `eci zone` to list)\n"
         "\n"
         "For non-interactive setup, use `eci config set` instead.\n"

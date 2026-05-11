@@ -244,7 +244,15 @@ def test_launch_missing_instance_type_or_pricing_id_errors(
     assert "either --instance-type or --pricing-id" in result.output
 
 
-def test_launch_missing_subnet_errors(mock_client, app_obj, isolated_config_path):
+def test_launch_without_subnet_reuses_existing_default(
+    mock_client, app_obj, isolated_config_path
+):
+    _stub_full_launch(mock_client)
+    default_subnet_uuid = "33333333-3333-3333-3333-333333333333"
+    mock_client.list_subnets.return_value = [
+        {"id": default_subnet_uuid, "name": "eci-default-subnet"}
+    ]
+
     result = CliRunner().invoke(
         vm_launch,
         [
@@ -255,14 +263,52 @@ def test_launch_missing_subnet_errors(mock_client, app_obj, isolated_config_path
             "--instance-type",
             "M-8",
             "--image",
-            "u",
+            "ubuntu",
             "--size-gib",
             "100",
         ],
         obj=app_obj,
     )
-    assert result.exit_code != 0
-    assert "--subnet is required" in result.output
+    assert result.exit_code == 0, result.output
+    mock_client.create_vnet.assert_not_called()
+    mock_client.create_subnet.assert_not_called()
+    nic_call = mock_client.create_nic.call_args.kwargs
+    assert nic_call["attached_subnet_id"] == default_subnet_uuid
+
+
+def test_launch_without_subnet_creates_default_vnet_and_subnet(
+    mock_client, app_obj, isolated_config_path
+):
+    _stub_full_launch(mock_client)
+    mock_client.list_subnets.return_value = []  # default doesn't exist
+    mock_client.list_vnets.return_value = []  # default vnet doesn't exist either
+    new_vnet_uuid = "44444444-4444-4444-4444-444444444444"
+    new_subnet_uuid = "55555555-5555-5555-5555-555555555555"
+    mock_client.create_vnet.return_value = {"id": new_vnet_uuid}
+    mock_client.create_subnet.return_value = {"id": new_subnet_uuid}
+
+    result = CliRunner().invoke(
+        vm_launch,
+        [
+            "--name",
+            "demo",
+            "--password",
+            "pw",
+            "--instance-type",
+            "M-8",
+            "--image",
+            "ubuntu",
+            "--size-gib",
+            "100",
+        ],
+        obj=app_obj,
+    )
+    assert result.exit_code == 0, result.output
+    vnet_kwargs = mock_client.create_vnet.call_args.kwargs
+    assert vnet_kwargs["name"] == "eci-default-vnet"
+    subnet_kwargs = mock_client.create_subnet.call_args.kwargs
+    assert subnet_kwargs["name"] == "eci-default-subnet"
+    assert subnet_kwargs["attached_network_id"] == new_vnet_uuid
 
 
 def test_launch_rejects_non_vm_pricing_id(mock_client, app_obj, isolated_config_path):

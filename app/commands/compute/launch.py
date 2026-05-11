@@ -22,6 +22,50 @@ def _well_known_pricing_id(app: AppContext, *, kind: str, name: str) -> str:
     )["id"]
 
 
+DEFAULT_VNET_NAME = "eci-default-vnet"
+DEFAULT_VNET_CIDR = "192.168.0.0/16"
+DEFAULT_SUBNET_NAME = "eci-default-subnet"
+DEFAULT_SUBNET_GATEWAY = "192.168.0.1/24"
+
+
+def _ensure_default_subnet(app: AppContext) -> str:
+    """Return id of `eci-default-subnet`, creating vnet+subnet if missing.
+
+    Idempotent: re-uses an existing default vnet/subnet when present so
+    repeated `vm launch` calls don't pile up resources.
+    """
+    existing_subnets = app.client.list_subnets(name_ilike=DEFAULT_SUBNET_NAME)
+    for s in existing_subnets:
+        if s.get("name") == DEFAULT_SUBNET_NAME:
+            return s["id"]
+
+    existing_vnets = app.client.list_vnets(name_ilike=DEFAULT_VNET_NAME)
+    vnet_id: str | None = None
+    for v in existing_vnets:
+        if v.get("name") == DEFAULT_VNET_NAME:
+            vnet_id = v["id"]
+            break
+
+    if vnet_id is None:
+        click.echo(
+            f"creating default vnet '{DEFAULT_VNET_NAME}' ({DEFAULT_VNET_CIDR})",
+            err=True,
+        )
+        vnet_id = app.client.create_vnet(
+            name=DEFAULT_VNET_NAME, network_cidr=DEFAULT_VNET_CIDR
+        )["id"]
+
+    click.echo(
+        f"creating default subnet '{DEFAULT_SUBNET_NAME}' ({DEFAULT_SUBNET_GATEWAY})",
+        err=True,
+    )
+    return app.client.create_subnet(
+        name=DEFAULT_SUBNET_NAME,
+        attached_network_id=vnet_id,
+        network_gw=DEFAULT_SUBNET_GATEWAY,
+    )["id"]
+
+
 @click.command(
     "launch",
     help=(
@@ -29,7 +73,10 @@ def _well_known_pricing_id(app: AppContext, *, kind: str, name: str) -> str:
         "\n"
         "\b\n"
         "Required (unless reused or skipped):\n"
-        "  --name, --password, --instance-type, --image, --size-gib, --subnet\n"
+        "  --name, --password, --instance-type, --image, --size-gib\n"
+        "\n"
+        "If --subnet is omitted, a default vnet/subnet ('eci-default-vnet' /\n"
+        "'eci-default-subnet') is created on first use and reused after.\n"
         "\n"
         "\b\n"
         "Password rules (enforced by the API):\n"
@@ -38,10 +85,10 @@ def _well_known_pricing_id(app: AppContext, *, kind: str, name: str) -> str:
         "\n"
         "\b\n"
         "Examples:\n"
-        "  # Minimal launch\n"
+        "  # Minimal launch (auto-creates default vnet/subnet on first use)\n"
         "  eci compute vm launch --name web-1 \\\n"
         "      --instance-type C-2 --image 'Ubuntu 24.04 LTS (Standard)' \\\n"
-        "      --size-gib 20 --subnet my-subnet --password 'Vk7m@p2qLn5!'\n"
+        "      --size-gib 20 --password 'Vk7m@p2qLn5!'\n"
         "\n"
         "\b\n"
         "  # Spot price\n"
@@ -211,9 +258,7 @@ def vm_launch(
             raise click.ClickException("--image is required (or use --block-storage)")
 
     if not no_network and not nic_arg and not subnet:
-        raise click.ClickException(
-            "--subnet is required (or pass --nic / --no-network)"
-        )
+        subnet = _ensure_default_subnet(app)
 
     out: dict[str, Any] = {}
     cleanups: list[tuple[str, Callable[[], Any]]] = []

@@ -57,7 +57,7 @@ def resolve_create_pricing(
     assert it_id is not None
     pricings = app.client.list_pricings(
         resource_kind=PricingResourceKind.vm_allocation,
-        resource_id=it_id,
+        resource_ids=[it_id],
         pricing_type=effective_pt,
         activated=True,
     )

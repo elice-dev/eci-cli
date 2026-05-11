@@ -47,7 +47,7 @@ def test_vm_create_with_instance_type_finds_ondemand_pricing():
     assert kwargs["pricing_id"] == _PRICING_UUID
     pricings_call = client.list_pricings.call_args.kwargs
     assert pricings_call.get("pricing_type") == "ondemand"
-    assert pricings_call.get("resource_id") == _IT_UUID
+    assert pricings_call.get("resource_ids") == [_IT_UUID]
 
 
 def test_vm_create_with_explicit_price_type():

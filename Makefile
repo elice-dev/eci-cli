@@ -33,6 +33,7 @@ build-standalone:
 		--output-filename=eci \
 		--output-dir=dist \
 		--include-package=app \
+		--include-package=rich \
 		--assume-yes-for-downloads \
 		--remove-output \
 		--no-progressbar \

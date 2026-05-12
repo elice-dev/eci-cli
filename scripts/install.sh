@@ -15,13 +15,17 @@
 #   ROOT_DIR      Directory that holds the unpacked bundle. Defaults to /usr/local/eci-cli
 #                 or ~/.local/eci-cli if /usr/local is not writable.
 #   GITHUB_REPO   Override the source repo (default: elice-dev/eci-cli).
+#   RELEASE_BASE  Override the release download base URL.
+#                 (default: https://github.com/$GITHUB_REPO/releases/download)
+#   GITHUB_API    Override the GitHub API endpoint used for version lookup.
+#                 (default: https://api.github.com/repos/$GITHUB_REPO)
 
 set -eu
 
 BINARY_NAME="eci"
 GITHUB_REPO="${GITHUB_REPO:-elice-dev/eci-cli}"
-RELEASE_BASE="https://github.com/${GITHUB_REPO}/releases/download"
-GITHUB_API="https://api.github.com/repos/${GITHUB_REPO}"
+RELEASE_BASE="${RELEASE_BASE:-https://github.com/${GITHUB_REPO}/releases/download}"
+GITHUB_API="${GITHUB_API:-https://api.github.com/repos/${GITHUB_REPO}}"
 FROM_DIR=""
 
 while [ $# -gt 0 ]; do

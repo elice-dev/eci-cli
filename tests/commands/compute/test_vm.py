@@ -1,12 +1,16 @@
 from __future__ import annotations
 
 import json
+import sys
 from unittest.mock import MagicMock
 
 from click.testing import CliRunner
 
+import app.commands.compute.vm  # noqa: F401  (ensure submodule is loaded)
 from app.commands.compute.vm import vm
 from app.utils.name_resolver import AppContext
+
+vm_module = sys.modules["app.commands.compute.vm"]
 
 
 def _app(client: MagicMock) -> AppContext:
@@ -307,16 +311,23 @@ def test_vm_delete_cascade_stops_running_vm_first():
 def test_vm_delete_aborts_without_yes_when_no_input():
     client = MagicMock()
     client.list_vms.return_value = [{"id": "vm-1", "name": "demo"}]
+    client.list_nics.return_value = []
+    client.list_public_ips.return_value = []
+    client.list_block_storages.return_value = []
 
     runner = CliRunner()
     result = runner.invoke(vm, ["delete", "demo"], input="n\n", obj=_app(client))
     assert result.exit_code != 0
+    assert "nothing was deleted" in result.output
     client.delete_vm.assert_not_called()
 
 
 def test_vm_delete_no_cascade_skips_cleanup():
     client = MagicMock()
     client.list_vms.return_value = [{"id": "vm-1", "name": "demo"}]
+    client.list_nics.return_value = []
+    client.list_public_ips.return_value = []
+    client.list_block_storages.return_value = []
     client.delete_vm.return_value = {"id": "vm-1"}
 
     runner = CliRunner()
@@ -324,22 +335,65 @@ def test_vm_delete_no_cascade_skips_cleanup():
         vm, ["delete", "demo", "-y", "--no-cascade"], obj=_app(client)
     )
     assert result.exit_code == 0
-    client.list_nics.assert_not_called()
-    client.list_block_storages.assert_not_called()
+    client.attach_block_storage.assert_not_called()
+    client.delete_block_storage.assert_not_called()
+    client.attach_nic.assert_not_called()
+    client.delete_nic.assert_not_called()
     client.delete_vm.assert_called_once_with("vm-1")
 
 
 def test_vm_delete_default_does_not_cascade():
     client = MagicMock()
     client.list_vms.return_value = [{"id": "vm-1", "name": "demo"}]
+    client.list_nics.return_value = []
+    client.list_public_ips.return_value = []
+    client.list_block_storages.return_value = []
     client.delete_vm.return_value = {"id": "vm-1"}
 
     runner = CliRunner()
     result = runner.invoke(vm, ["delete", "demo", "-y"], obj=_app(client))
     assert result.exit_code == 0, result.output
-    client.list_nics.assert_not_called()
-    client.list_block_storages.assert_not_called()
-    client.list_public_ips.assert_not_called()
+    client.attach_block_storage.assert_not_called()
+    client.delete_block_storage.assert_not_called()
+    client.delete_vm.assert_called_once_with("vm-1")
+
+
+def test_vm_delete_no_cascade_bails_when_attached_resources_present():
+    client = MagicMock()
+    client.list_vms.return_value = [{"id": "vm-1", "name": "demo"}]
+    client.list_nics.return_value = [{"id": "nic-1"}]
+    client.list_public_ips.return_value = []
+    client.list_block_storages.return_value = [{"id": "bs-1"}]
+
+    runner = CliRunner()
+    result = runner.invoke(vm, ["delete", "demo", "-y"], obj=_app(client))
+    assert result.exit_code != 0
+    assert "attached resources" in result.output
+    assert "--cascade" in result.output
+    client.delete_vm.assert_not_called()
+
+
+def test_vm_delete_no_cascade_prompts_to_escalate_in_tty(monkeypatch):
+    monkeypatch.setattr(vm_module, "_is_tty", lambda: True)
+
+    client = MagicMock()
+    client.list_vms.return_value = [{"id": "vm-1", "name": "demo"}]
+    client.list_allocations.return_value = []
+    nics = [{"id": "nic-1", "attached_machine_id": "vm-1"}]
+    ips = [{"id": "ip-1", "attached_network_interface_id": "nic-1"}]
+    bss = [{"id": "bs-1", "attached_machine_id": "vm-1"}]
+    client.list_nics.return_value = nics
+    client.list_public_ips.return_value = ips
+    client.list_block_storages.return_value = bss
+    client.delete_vm.return_value = {"id": "vm-1"}
+
+    runner = CliRunner()
+    result = runner.invoke(vm, ["delete", "demo"], input="y\n", obj=_app(client))
+    assert result.exit_code == 0, result.output
+    assert "and its attached resources" in result.output
+    client.delete_block_storage.assert_called_once_with("bs-1")
+    client.delete_nic.assert_called_once_with("nic-1")
+    client.delete_public_ip.assert_called_once_with("ip-1")
     client.delete_vm.assert_called_once_with("vm-1")
 
 

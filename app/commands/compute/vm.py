@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import sys
+
 import click
 
 from ...client import VMStatus, is_active_allocation
@@ -14,6 +16,10 @@ from ...utils import (
     render_one,
 )
 from ._pricing import PriceType, resolve_create_pricing
+
+
+def _is_tty() -> bool:
+    return sys.stdin.isatty()
 
 
 @click.group("vm", cls=ResourceGroup, help="Virtual machines.")
@@ -260,22 +266,37 @@ def vm_update(
 def vm_delete(app: AppContext, name_or_id: str, cascade: bool, yes: bool) -> None:
     vm_id = app.resolver.resolve("list_vms", name_or_id)
 
-    disks: list[dict] = []
-    nics: list[dict] = []
-    ips: list[dict] = []
-    if cascade:
-        disks = app.client.list_block_storages(attached_machine_id=vm_id)
-        nics = app.client.list_nics(attached_machine_id=vm_id)
-        nic_ids = {n["id"] for n in nics}
-        ips = [
-            ip
-            for ip in app.client.list_public_ips(
-                attached_network_interface_id="notnull"
-            )
-            if ip.get("attached_network_interface_id") in nic_ids
-        ]
+    disks = app.client.list_block_storages(attached_machine_id=vm_id)
+    nics = app.client.list_nics(attached_machine_id=vm_id)
+    nic_ids = {n["id"] for n in nics}
+    ips = [
+        ip
+        for ip in app.client.list_public_ips(attached_network_interface_id="notnull")
+        if ip.get("attached_network_interface_id") in nic_ids
+    ]
+    has_attached = bool(disks or nics or ips)
+    will_cascade = cascade
 
-    if cascade and (disks or nics or ips):
+    if has_attached and not cascade:
+        parts = []
+        if disks:
+            parts.append(f"{len(disks)} block_storage(s)")
+        if nics:
+            parts.append(f"{len(nics)} NIC(s)")
+        if ips:
+            parts.append(f"{len(ips)} public IP(s)")
+        attached_summary = ", ".join(parts)
+
+        if yes or not _is_tty():
+            raise click.ClickException(
+                f"VM {name_or_id} has attached resources ({attached_summary}). "
+                "Re-run with --cascade to delete them along with the VM, "
+                "or detach them first."
+            )
+        click.echo(f"VM {name_or_id} has attached resources: {attached_summary}.")
+        will_cascade = True
+
+    if will_cascade and has_attached:
         msg = (
             f"Cascade will delete: {len(disks)} disk(s), "
             f"{len(nics)} NIC(s), {len(ips)} public IP(s). "
@@ -287,9 +308,16 @@ def vm_delete(app: AppContext, name_or_id: str, cascade: bool, yes: bool) -> Non
             click.echo(msg)
 
     if not yes:
-        click.confirm(f"Delete VM {name_or_id} (cascade={cascade})?", abort=True)
+        prompt = (
+            f"Delete VM {name_or_id} and its attached resources?"
+            if will_cascade and has_attached
+            else f"Delete VM {name_or_id}?"
+        )
+        if not click.confirm(prompt, default=False):
+            click.echo("delete cancelled; nothing was deleted.", err=True)
+            raise click.exceptions.Exit(1)
 
-    if cascade:
+    if will_cascade:
         active = next(
             (
                 a

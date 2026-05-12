@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import datetime as _dt
 import sys
 from functools import partial
 from typing import Any, Callable
@@ -375,7 +376,8 @@ def vm_launch(
     if not name:
         if not _is_tty():
             _require_in_non_tty("NAME", "name")
-        name = click.prompt("name", default="vm-1")
+        default_name = "vm-" + _dt.datetime.now().strftime("%Y%m%d-%H%M")
+        name = click.prompt("name", default=default_name)
 
     cfg = Config.load()
 

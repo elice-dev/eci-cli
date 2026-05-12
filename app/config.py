@@ -43,21 +43,44 @@ class Config:
         )
 
     def save(self) -> None:
-        CONFIG_PATH.parent.mkdir(parents=True, exist_ok=True)
+        # Create parent dir with 0o700 from the start so the directory entry
+        # never appears world/group-readable. mkdir(mode=...) honors the
+        # umask, so chmod the result to be sure.
+        parent = CONFIG_PATH.parent
+        parent.mkdir(parents=True, exist_ok=True, mode=0o700)
+        try:
+            os.chmod(parent, 0o700)
+        except OSError:
+            pass
 
-        with open(CONFIG_PATH, "w") as f:
-            yaml.safe_dump(
-                {
-                    "api_endpoint": self.api_endpoint,
-                    "api_token": self.api_token,
-                    "zone_id": self.zone_id,
-                    "vm_defaults": self.vm_defaults,
-                },
-                f,
-                sort_keys=False,
-            )
-
-        os.chmod(CONFIG_PATH, 0o600)
+        # Write to a sibling temp file at 0o600, then atomically rename.
+        # Avoids the TOCTOU window where the real config file existed at
+        # default umask perms (0o644) between open() and chmod().
+        payload = yaml.safe_dump(
+            {
+                "api_endpoint": self.api_endpoint,
+                "api_token": self.api_token,
+                "zone_id": self.zone_id,
+                "vm_defaults": self.vm_defaults,
+            },
+            sort_keys=False,
+        )
+        tmp_path = CONFIG_PATH.with_suffix(CONFIG_PATH.suffix + ".tmp")
+        fd = os.open(
+            str(tmp_path),
+            os.O_WRONLY | os.O_CREAT | os.O_TRUNC,
+            0o600,
+        )
+        try:
+            with os.fdopen(fd, "w") as f:
+                f.write(payload)
+            os.replace(str(tmp_path), str(CONFIG_PATH))
+        except BaseException:
+            try:
+                os.unlink(str(tmp_path))
+            except OSError:
+                pass
+            raise
 
     def set_path(self, dotted: str, value: Any) -> None:
         parts = dotted.split(".")

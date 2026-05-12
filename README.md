@@ -15,20 +15,31 @@ unpacks to `/usr/local/eci-cli` (or `~/.local/eci-cli` without sudo) and
 symlinks `eci` onto `PATH`.
 
 ```bash
-curl -fsSL https://api.elice.cloud/cli/install.sh | sh
+curl -fsSL https://raw.githubusercontent.com/elice-dev/eci-cli/main/scripts/install.sh | sh
 ```
 
 Override the install paths if you want:
 
 ```bash
 INSTALL_DIR=~/bin ROOT_DIR=~/opt/eci-cli \
-    curl -fsSL https://api.elice.cloud/cli/install.sh | sh
+    curl -fsSL https://raw.githubusercontent.com/elice-dev/eci-cli/main/scripts/install.sh | sh
+```
+
+Pin to a specific version:
+
+```bash
+VERSION=0.1.0 curl -fsSL https://raw.githubusercontent.com/elice-dev/eci-cli/main/scripts/install.sh | sh
 ```
 
 The CLI is a Nuitka `--standalone` directory bundle (AWS CLI v2-style),
-warm startup ~85ms. Releases are built for **Linux x86_64**; macOS /
-Windows users build from source — see the [Development](#development)
-section below.
+warm startup ~85ms. Pre-built binaries are published on
+[GitHub Releases](https://github.com/elice-dev/eci-cli/releases) for:
+
+- **macOS** (arm64, Apple Silicon)
+- **Linux** (x86_64)
+
+Windows users and other architectures build from source — see the
+[Development](#development) section below.
 
 ### Corporate SSL inspection
 
@@ -142,13 +153,19 @@ eci compute vm                  # list
 eci compute vm demo             # show
 eci compute vm start demo
 eci compute vm stop demo
-eci compute vm delete demo                # delete VM only (attached disk/NIC/IP are kept)
-eci compute vm delete demo --cascade      # also delete attached disk/NIC/IP (data loss!)
+eci compute vm delete demo                # interactive: prompts to also delete attached disk/NIC/IP if any
+eci compute vm delete demo --cascade -y   # non-interactive: also delete attached disk/NIC/IP (data loss!)
 
 # SSH (uses the VM's stored username + first attached public IP)
 eci compute ssh demo
-eci compute ssh demo -l root -p 2222 -i ~/.ssh/id_rsa
-eci compute ssh demo -- -L 8080:localhost:8080  # forward extra ssh args after `--`
+eci compute ssh demo --login root --port 2222 --identity ~/.ssh/id_rsa
+
+# Run a remote command — everything after NAME_OR_ID goes to ssh after
+# the destination, so short flags like `-p` or `-l` reach the remote shell
+# instead of being absorbed by the wrapper.
+eci compute ssh demo echo hello
+eci compute ssh demo tail -f /var/log/syslog
+eci compute ssh demo -- -L 8080:localhost:8080  # extra ssh options after `--`
 
 # Clusters
 eci compute cluster create --name c1 --instance-type M-8
@@ -206,7 +223,7 @@ For contributors to this repo (and macOS / Windows users until those
 release builds exist).
 
 ```bash
-git clone <repo-url> eci-cli
+git clone https://github.com/elice-dev/eci-cli.git
 cd eci-cli
 uv sync
 ```

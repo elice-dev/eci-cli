@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import sys
+
 import click
 import yaml
 
@@ -130,6 +132,12 @@ def config_init() -> None:
         "  eci config verify\n"
         "\n"
         "\b\n"
+        "Read VALUE from stdin (recommended for secrets — keeps the token out\n"
+        "of shell history / ps / CI logs):\n"
+        "  pbpaste | eci config set api_token -\n"
+        '  echo "$ECI_TOKEN" | eci config set api_token -\n'
+        "\n"
+        "\b\n"
         "Get a token at: Elice Cloud portal → 사용자 관리 →\n"
         "사용자 액세스 토큰 → 토큰 생성\n"
         "\n"
@@ -143,6 +151,13 @@ def config_init() -> None:
 @click.argument("value")
 def config_set(path: str, value: str) -> None:
     cfg = Config.load()
+
+    # `-` means read VALUE from stdin (POSIX convention). Use this for
+    # secrets so the token never lands in shell history or `ps` output.
+    if value == "-":
+        value = sys.stdin.readline().rstrip("\n")
+        if not value:
+            raise click.ClickException("no value read from stdin")
 
     if path == "zone_id" and value == "auto":
         value = _resolve_zone_auto(cfg)

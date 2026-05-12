@@ -2,25 +2,26 @@
 # Install script for the ECI (Elice Cloud Infrastructure) CLI.
 #
 # Usage:
-#   # From a release host:
-#   curl -fsSL https://api.elice.cloud/cli/install.sh | sh
+#   # Latest release from GitHub:
+#   curl -fsSL https://raw.githubusercontent.com/elice-dev/eci-cli/main/scripts/install.sh | sh
 #
 #   # From a local build (after `make build-standalone`):
 #   sh scripts/install.sh --from dist/entry.dist
 #
 # Environment variables:
-#   VERSION      Specific version to install (e.g., "0.1.0"). Defaults to latest.
-#   INSTALL_DIR  Directory to symlink the launcher into. Defaults to /usr/local/bin
-#                or ~/.local/bin if /usr/local/bin is not writable.
-#   ROOT_DIR     Directory that holds the unpacked bundle. Defaults to /usr/local/eci-cli
-#                or ~/.local/eci-cli if /usr/local is not writable.
-#   API_BASE     Override the API base URL (default: https://api.elice.cloud).
+#   VERSION       Specific version to install (e.g., "0.1.0"). Defaults to latest.
+#   INSTALL_DIR   Directory to symlink the launcher into. Defaults to /usr/local/bin
+#                 or ~/.local/bin if /usr/local/bin is not writable.
+#   ROOT_DIR      Directory that holds the unpacked bundle. Defaults to /usr/local/eci-cli
+#                 or ~/.local/eci-cli if /usr/local is not writable.
+#   GITHUB_REPO   Override the source repo (default: elice-dev/eci-cli).
 
 set -eu
 
 BINARY_NAME="eci"
-API_BASE="${API_BASE:-https://api.elice.cloud}"
-API_BASE="${API_BASE%/}"
+GITHUB_REPO="${GITHUB_REPO:-elice-dev/eci-cli}"
+RELEASE_BASE="https://github.com/${GITHUB_REPO}/releases/download"
+GITHUB_API="https://api.github.com/repos/${GITHUB_REPO}"
 FROM_DIR=""
 
 while [ $# -gt 0 ]; do
@@ -95,10 +96,10 @@ resolve_version() {
     echo "$VERSION"
     return
   fi
-  tag=$(curl -fsSL "${API_BASE}/cli/info" |
-    grep '"latestVersion"' |
+  tag=$(curl -fsSL "${GITHUB_API}/releases/latest" |
+    grep '"tag_name"' |
     head -1 |
-    sed 's/.*"latestVersion": *"\([^"]*\)".*/\1/')
+    sed 's/.*"tag_name": *"v\{0,1\}\([^"]*\)".*/\1/')
   if [ -z "$tag" ]; then
     printf "Error: could not determine latest version. Set VERSION explicitly.\n" >&2
     exit 1
@@ -146,7 +147,7 @@ main() {
   else
     version="$(resolve_version)"
     asset="${BINARY_NAME}-${os}-${arch}-${version}.tar.gz"
-    url="${API_BASE}/cli/download/v${version}/${asset}"
+    url="${RELEASE_BASE}/v${version}/${asset}"
 
     printf "Installing %s v%s (%s/%s)\n" "$BINARY_NAME" "$version" "$os" "$arch"
     printf "  bundle: %s\n" "$root_dir"
@@ -154,7 +155,7 @@ main() {
 
     printf "Downloading...\n"
     curl -fsSL -o "${tmpdir}/${asset}" "$url"
-    curl -fsSL -o "${tmpdir}/checksums.txt" "${API_BASE}/cli/download/v${version}/checksums.txt"
+    curl -fsSL -o "${tmpdir}/checksums.txt" "${RELEASE_BASE}/v${version}/checksums.txt"
 
     printf "Verifying checksum...\n"
     expected="$(grep "${asset}" "${tmpdir}/checksums.txt" | awk '{print $1}')"

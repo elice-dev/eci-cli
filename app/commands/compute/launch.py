@@ -8,6 +8,7 @@ import click
 
 from ...client import (
     BlockStorageStatus,
+    ECIError,
     PricingResourceKind,
     VMAllocationStatus,
     VMStatus,
@@ -59,25 +60,87 @@ DEFAULT_SUBNET_NAME = "eci-default-subnet"
 DEFAULT_SUBNET_GATEWAY = "192.168.0.1/24"
 
 
+def _list_named(items: list[dict], target_name: str) -> list[dict]:
+    """Filter list_* results to those whose `name` field exactly matches."""
+    return [i for i in items if i.get("name") == target_name]
+
+
+def _oldest(items: list[dict]) -> dict:
+    """Pick the earliest-created row. Backend rows include an ISO-8601
+    `created` timestamp; lexicographic sort on that string sorts ascending
+    by time. Falls back to id-sort if `created` is missing."""
+    return min(items, key=lambda i: (i.get("created", ""), i.get("id", "")))
+
+
+def _pick_existing_default(
+    app: AppContext,
+    target_name: str,
+    list_fn,
+    *,
+    kind: str,
+) -> dict | None:
+    """Return the canonical row for a default-named resource, or None.
+
+    If multiple rows exist (e.g. two concurrent `launch` calls each created
+    one), pick the oldest and warn the user about the duplicates so they
+    can clean up. We don't auto-delete: the duplicates may have been
+    intentionally created and silently destroying them would be hostile.
+    """
+    candidates = _list_named(list_fn(name_ilike=target_name), target_name)
+    if not candidates:
+        return None
+
+    chosen = _oldest(candidates) if len(candidates) > 1 else candidates[0]
+    if len(candidates) > 1:
+        extras = [c["id"] for c in candidates if c["id"] != chosen["id"]]
+        click.echo(
+            f"warning: {len(candidates)} {kind}s named {target_name!r} exist; "
+            f"using oldest ({chosen['id']}). "
+            f"Consider deleting duplicates: {', '.join(extras)}",
+            err=True,
+        )
+    return chosen
+
+
 def _ensure_default_subnet(app: AppContext) -> str:
     """Return id of `eci-default-subnet`, creating vnet+subnet if missing.
 
-    Idempotent: re-uses an existing default vnet/subnet when present so
-    repeated `vm launch` calls don't pile up resources.
+    Robust against:
+      - Concurrent first-launch calls each racing to create the default
+        subnet (detected post-create; oldest wins, others get a warning).
+      - Orphan subnet whose attached vnet was deleted out from under it
+        (raises a clear error rather than letting NIC creation fail with
+        a cryptic server-side message later).
     """
-    existing_subnets = app.client.list_subnets(name_ilike=DEFAULT_SUBNET_NAME)
-    for s in existing_subnets:
-        if s.get("name") == DEFAULT_SUBNET_NAME:
-            return s["id"]
+    existing = _pick_existing_default(
+        app, DEFAULT_SUBNET_NAME, app.client.list_subnets, kind="subnet"
+    )
+    if existing is not None:
+        # Verify the attached vnet is still alive. If it isn't, the user
+        # likely deleted vnet by hand; the subnet is orphaned and NIC
+        # creation against it will fail later with a confusing error.
+        attached_vnet = existing.get("attached_network_id")
+        if attached_vnet:
+            try:
+                app.client.get_vnet(attached_vnet)
+            except ECIError as e:
+                if getattr(e, "status", None) == 404:
+                    raise click.ClickException(
+                        f"default subnet {existing['id']} references missing "
+                        f"vnet {attached_vnet}. The subnet is orphaned — delete it "
+                        f"and re-run:\n"
+                        f"  eci network subnet delete {existing['id']}"
+                    ) from None
+                raise
+        return existing["id"]
 
-    existing_vnets = app.client.list_vnets(name_ilike=DEFAULT_VNET_NAME)
-    vnet_id: str | None = None
-    for v in existing_vnets:
-        if v.get("name") == DEFAULT_VNET_NAME:
-            vnet_id = v["id"]
-            break
-
-    if vnet_id is None:
+    existing_vnet = _pick_existing_default(
+        app, DEFAULT_VNET_NAME, app.client.list_vnets, kind="vnet"
+    )
+    vnet_id: str
+    if existing_vnet is not None:
+        vnet_id = existing_vnet["id"]
+    else:
         click.echo(
             f"creating default vnet '{DEFAULT_VNET_NAME}' ({DEFAULT_VNET_CIDR})",
             err=True,
@@ -90,11 +153,32 @@ def _ensure_default_subnet(app: AppContext) -> str:
         f"creating default subnet '{DEFAULT_SUBNET_NAME}' ({DEFAULT_SUBNET_GATEWAY})",
         err=True,
     )
-    return app.client.create_subnet(
+    created = app.client.create_subnet(
         name=DEFAULT_SUBNET_NAME,
         attached_network_id=vnet_id,
         network_gw=DEFAULT_SUBNET_GATEWAY,
-    )["id"]
+    )
+
+    # Race check: another concurrent `launch` might have created its own
+    # `eci-default-subnet` between our list-empty check and our create.
+    # If we now see >1, defer to the oldest so future calls converge.
+    post_check = _list_named(
+        app.client.list_subnets(name_ilike=DEFAULT_SUBNET_NAME),
+        DEFAULT_SUBNET_NAME,
+    )
+    if len(post_check) > 1:
+        chosen = _oldest(post_check)
+        extras = [s["id"] for s in post_check if s["id"] != chosen["id"]]
+        click.echo(
+            f"warning: detected concurrent default-subnet creation "
+            f"({len(post_check)} subnets named {DEFAULT_SUBNET_NAME!r}); "
+            f"using oldest ({chosen['id']}). "
+            f"Consider deleting duplicates: {', '.join(extras)}",
+            err=True,
+        )
+        return chosen["id"]
+
+    return created["id"]
 
 
 @click.command(
@@ -116,7 +200,12 @@ def _ensure_default_subnet(app: AppContext) -> str:
         "If --subnet is omitted, a default vnet/subnet ('eci-default-vnet' /\n"
         "'eci-default-subnet') is created on first use and reused after.\n"
         "\n"
-        "Default OS login user is 'ubuntu' (override with --username).\n"
+        "OS login user defaults to 'ubuntu' (override with --username).\n"
+        "\n"
+        "If a vm-spec named 'default' has been saved (see `eci vm-spec save -h`),\n"
+        "it is auto-applied. Explicit launch flags override individual fields;\n"
+        "pass --no-spec to skip auto-apply. A 'using vm-spec ...' line is\n"
+        "printed whenever spec fields are applied.\n"
         "\n"
         "`launch` returns as soon as the start request is accepted; pass\n"
         "--wait to block until the VM reaches 'started'.\n"
@@ -220,10 +309,18 @@ def _ensure_default_subnet(app: AppContext) -> str:
 @click.option(
     "--spec",
     "spec_name",
-    is_flag=False,
-    flag_value="default",
-    default=None,
-    help="Use a saved vm-spec by name (default = `default`).",
+    default="default",
+    show_default=False,
+    help=(
+        "Saved vm-spec name. Auto-applies 'default' if one exists. "
+        "Explicit launch flags override individual spec fields."
+    ),
+)
+@click.option(
+    "--no-spec",
+    "no_spec",
+    is_flag=True,
+    help="Skip auto-applying the 'default' vm-spec.",
 )
 @click.option(
     "--block-storage",
@@ -259,6 +356,7 @@ def vm_launch(
     always_on: bool,
     dr: bool,
     spec_name: str | None,
+    no_spec: bool,
     block_storage: str | None,
     nic_arg: str | None,
     public_ip: str | None,
@@ -280,6 +378,10 @@ def vm_launch(
         name = click.prompt("name", default="vm-1")
 
     cfg = Config.load()
+
+    if no_spec and spec_name != "default":
+        raise click.ClickException("--no-spec cannot be combined with --spec")
+
     explicit = {
         "username": username,
         "instance_type": instance_type,
@@ -289,18 +391,46 @@ def vm_launch(
         "size_gib": size_gib,
         "subnet": subnet,
     }
+
     spec: dict | None = None
-    if spec_name:
-        spec = (cfg.vm_defaults or {}).get(spec_name)
-        if not spec:
+    if not no_spec:
+        spec_lookup = (cfg.vm_defaults or {}).get(spec_name)
+        if spec_lookup is None and spec_name != "default":
             raise click.ClickException(f"no vm-spec named {spec_name!r}")
-        username = username or spec.get("username")
-        image = image if image is not None else spec.get("image")
-        size_gib = size_gib if size_gib is not None else spec.get("size_gib")
-        subnet = subnet or spec.get("subnet") or spec.get("subnet_id")
-        instance_type = instance_type or spec.get("instance_type")
-        price_type = price_type or spec.get("price_type")
-        pricing_id = pricing_id or spec.get("pricing_id")
+        spec = spec_lookup
+
+    applied_from_spec: list[tuple[str, object]] = []
+    if spec is not None:
+        if explicit["username"] is None and spec.get("username") is not None:
+            username = spec["username"]
+            applied_from_spec.append(("username", username))
+        if explicit["image"] is None and spec.get("image") is not None:
+            image = spec["image"]
+            applied_from_spec.append(("image", image))
+        if explicit["size_gib"] is None and spec.get("size_gib") is not None:
+            size_gib = spec["size_gib"]
+            applied_from_spec.append(("size_gib", size_gib))
+        spec_subnet = spec.get("subnet") or spec.get("subnet_id")
+        if explicit["subnet"] is None and spec_subnet is not None:
+            subnet = spec_subnet
+            applied_from_spec.append(("subnet", subnet))
+        if explicit["instance_type"] is None and spec.get("instance_type") is not None:
+            instance_type = spec["instance_type"]
+            applied_from_spec.append(("instance_type", instance_type))
+        if explicit["price_type"] is None and spec.get("price_type") is not None:
+            price_type = spec["price_type"]
+            applied_from_spec.append(("price_type", price_type))
+        if explicit["pricing_id"] is None and spec.get("pricing_id") is not None:
+            pricing_id = spec["pricing_id"]
+            applied_from_spec.append(("pricing_id", pricing_id))
+
+    if applied_from_spec and spec_name is not None:
+        fields_str = ", ".join(f"{k}={v}" for k, v in applied_from_spec)
+        click.echo(
+            f"using vm-spec {spec_name!r}: {fields_str}\n"
+            "  (override with explicit flags; pass --no-spec to skip)",
+            err=True,
+        )
 
     username = username or "ubuntu"
 
@@ -553,17 +683,43 @@ def vm_launch(
                 except Exception:
                     pass
 
-        click.echo(f"\nstatus: {final_status}", err=True)
+        raw_pip = out.get("public_ip")
+        pip_info: dict = raw_pip if isinstance(raw_pip, dict) else {}
+        public_ip_value = pip_info.get("ip")
+        # When user passed --public-ip <existing>, we never captured the IP
+        # value. Look it up via the attached NIC so the summary is complete.
+        if not public_ip_value:
+            try:
+                nics_for_ip = app.client.list_nics(attached_machine_id=vm_id)
+                nic_ids_for_ip = {n["id"] for n in nics_for_ip}
+                for ip in app.client.list_public_ips():
+                    if (
+                        ip.get("attached_network_interface_id") in nic_ids_for_ip
+                        and ip.get("ip")
+                    ):
+                        public_ip_value = ip["ip"]
+                        break
+            except Exception:
+                pass
+
+        summary_fields: list[tuple[str, str]] = [
+            ("name", name),
+            ("status", final_status),
+        ]
+        if public_ip_value:
+            summary_fields.append(("public_ip", public_ip_value))
+        summary_fields.append(("user", username))
+
+        key_w = max(len(k) for k, _ in summary_fields)
+        click.echo("", err=True)
+        for k, v in summary_fields:
+            click.echo(f"  {k:<{key_w}}  {v}", err=True)
+
+        ssh_cmd = f"eci compute ssh {name}"
         if final_status == VMAllocationStatus.started.value:
-            click.echo(
-                f"SSH: eci compute ssh {name}   # login user: {username}",
-                err=True,
-            )
+            click.echo(f"  {'SSH':<{key_w}}  {ssh_cmd}", err=True)
         else:
-            click.echo(
-                f"once started: eci compute ssh {name}   # login user: {username}",
-                err=True,
-            )
+            click.echo(f"  {'SSH':<{key_w}}  {ssh_cmd}  (once started)", err=True)
 
     if spec_name and spec is not None:
         spec_subnet = spec.get("subnet") or spec.get("subnet_id")

@@ -57,6 +57,64 @@ def test_launch_full_path(mock_client, app_obj, isolated_config_path):
     mock_client.create_allocation.assert_called_once_with("vm-1")
 
 
+def test_launch_prints_human_summary_block(mock_client, app_obj, isolated_config_path):
+    _stub_full_launch(mock_client)
+    mock_client.create_public_ip.return_value = {"id": "ip-1", "ip": "203.0.113.42"}
+
+    result = CliRunner().invoke(
+        vm_launch,
+        [
+            "--name",
+            "demo",
+            "--password",
+            "pw",
+            "--instance-type",
+            "M-8",
+            "--image",
+            "ubuntu",
+            "--size-gib",
+            "20",
+            "--subnet",
+            "default",
+        ],
+        obj=app_obj,
+    )
+    assert result.exit_code == 0, result.output
+    # Human-readable summary at the end (stderr → captured into result.output)
+    assert "name" in result.output and "demo" in result.output
+    assert "public_ip" in result.output and "203.0.113.42" in result.output
+    assert "user" in result.output and "ubuntu" in result.output
+    assert "eci compute ssh demo" in result.output
+
+
+def test_launch_summary_omits_public_ip_when_no_network(
+    mock_client, app_obj, isolated_config_path
+):
+    _stub_full_launch(mock_client)
+
+    result = CliRunner().invoke(
+        vm_launch,
+        [
+            "--name",
+            "demo",
+            "--password",
+            "pw",
+            "--instance-type",
+            "M-8",
+            "--image",
+            "ubuntu",
+            "--size-gib",
+            "20",
+            "--no-network",
+        ],
+        obj=app_obj,
+    )
+    assert result.exit_code == 0, result.output
+    # The whole summary block is suppressed when no NIC/IP would exist.
+    assert "public_ip" not in result.output
+    assert "SSH" not in result.output
+
+
 def test_launch_no_network_skips_nic_and_ip(mock_client, app_obj, isolated_config_path):
     _stub_full_launch(mock_client)
 
@@ -462,6 +520,171 @@ def test_launch_unknown_spec_errors(mock_client, app_obj, isolated_config_path):
     )
     assert result.exit_code != 0
     assert "no vm-spec" in result.output
+
+
+def test_launch_auto_applies_default_spec_without_flag(
+    mock_client, app_obj, isolated_config_path
+):
+    _, path = isolated_config_path
+    path.write_text(
+        yaml.safe_dump(
+            {
+                "vm_defaults": {
+                    "default": {
+                        "username": "ubuntu",
+                        "instance_type": "M-8",
+                        "image": "ubuntu",
+                        "size_gib": 50,
+                        "subnet": "default",
+                    }
+                }
+            }
+        )
+    )
+    _stub_full_launch(mock_client)
+
+    result = CliRunner().invoke(
+        vm_launch,
+        ["--name", "demo", "--password", "pw"],
+        obj=app_obj,
+    )
+    assert result.exit_code == 0, result.output
+    assert "using vm-spec 'default'" in result.output
+    assert mock_client.create_block_storage.call_args.kwargs["size_gib"] == 50
+
+
+def test_launch_no_default_spec_is_silent_when_unset(
+    mock_client, app_obj, isolated_config_path
+):
+    _stub_full_launch(mock_client)
+
+    result = CliRunner().invoke(
+        vm_launch,
+        [
+            "--name",
+            "demo",
+            "--password",
+            "pw",
+            "--instance-type",
+            "M-8",
+            "--image",
+            "ubuntu",
+            "--size-gib",
+            "20",
+            "--subnet",
+            "default",
+        ],
+        obj=app_obj,
+    )
+    assert result.exit_code == 0, result.output
+    assert "using vm-spec" not in result.output
+
+
+def test_launch_no_spec_flag_skips_auto_apply(
+    mock_client, app_obj, isolated_config_path
+):
+    _, path = isolated_config_path
+    path.write_text(
+        yaml.safe_dump(
+            {
+                "vm_defaults": {
+                    "default": {
+                        "instance_type": "M-8",
+                        "image": "ubuntu",
+                        "size_gib": 50,
+                        "subnet": "default",
+                    }
+                }
+            }
+        )
+    )
+    _stub_full_launch(mock_client)
+    mock_client.list_instance_types.return_value = [
+        {"id": "it-uuid", "name": "M-8"},
+        {"id": "it-c2-uuid", "name": "C-2"},
+    ]
+    mock_client.list_pricings.return_value = [
+        {"id": "p-vm", "resource_id": "it-c2-uuid", "pricing_type": "ondemand"}
+    ]
+
+    result = CliRunner().invoke(
+        vm_launch,
+        [
+            "--name",
+            "demo",
+            "--password",
+            "pw",
+            "--no-spec",
+            "--instance-type",
+            "C-2",
+            "--image",
+            "ubuntu",
+            "--size-gib",
+            "20",
+            "--subnet",
+            "default",
+        ],
+        obj=app_obj,
+    )
+    assert result.exit_code == 0, result.output
+    assert "using vm-spec" not in result.output
+    assert mock_client.create_block_storage.call_args.kwargs["size_gib"] == 20
+
+
+def test_launch_no_spec_conflicts_with_spec_flag(mock_client, app_obj):
+    result = CliRunner().invoke(
+        vm_launch,
+        ["--name", "demo", "--password", "pw", "--no-spec", "--spec", "foo"],
+        obj=app_obj,
+    )
+    assert result.exit_code != 0
+    assert "--no-spec cannot be combined with --spec" in result.output
+
+
+def test_launch_visibility_line_omits_overridden_fields(
+    mock_client, app_obj, isolated_config_path
+):
+    _, path = isolated_config_path
+    path.write_text(
+        yaml.safe_dump(
+            {
+                "vm_defaults": {
+                    "default": {
+                        "instance_type": "M-8",
+                        "image": "ubuntu",
+                        "size_gib": 50,
+                        "subnet": "default",
+                    }
+                }
+            }
+        )
+    )
+    _stub_full_launch(mock_client)
+    mock_client.list_instance_types.return_value = [
+        {"id": "it-uuid", "name": "M-8"},
+        {"id": "it-c2-uuid", "name": "C-2"},
+    ]
+    mock_client.list_pricings.return_value = [
+        {"id": "p-vm", "resource_id": "it-c2-uuid", "pricing_type": "ondemand"}
+    ]
+
+    result = CliRunner().invoke(
+        vm_launch,
+        [
+            "--name",
+            "demo",
+            "--password",
+            "pw",
+            "--instance-type",
+            "C-2",  # overrides spec's M-8
+        ],
+        obj=app_obj,
+    )
+    assert result.exit_code == 0, result.output
+    # spec applied for image/size_gib/subnet, but NOT instance_type (overridden)
+    assert "using vm-spec 'default'" in result.output
+    assert "instance_type=" not in result.output  # would conflict with --instance-type
+    assert "image=" in result.output
 
 
 _FULL_SPEC = {

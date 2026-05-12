@@ -11,6 +11,36 @@ import click
 from ..client import ECIClient
 
 
+_KIND_FOR_LIST: dict[str, str] = {
+    "list_zones": "zone",
+    "list_regions": "region",
+    "list_instance_types": "instance type",
+    "list_pricings": "pricing",
+    "list_images": "image",
+    "list_clusters": "cluster",
+    "list_vms": "VM",
+    "list_allocations": "VM allocation",
+    "list_cluster_allocations": "cluster allocation",
+    "list_subnets": "subnet",
+    "list_vnets": "virtual network",
+    "list_nics": "NIC",
+    "list_public_ips": "public IP",
+    "list_block_storages": "block storage",
+    "list_block_snapshots": "block snapshot",
+    "list_snapshot_schedulers": "snapshot scheduler",
+    "list_pfs": "parallel file system",
+    "list_pfs_members": "PFS member",
+    "list_object_storages": "object storage",
+    "list_object_users": "object storage user",
+    "list_object_grants": "object storage grant",
+    "list_vpns": "VPN",
+}
+
+
+def _kind_label(list_fn_name: str) -> str:
+    return _KIND_FOR_LIST.get(list_fn_name, "item")
+
+
 class NameResolver:
     FIELD_MAP: dict[str, str] = {
         "zone_id": "list_zones",
@@ -83,12 +113,14 @@ class NameResolver:
             all_items = getattr(self.client, list_fn_name)()
             exact = [i for i in all_items if i.get("ip") == name_or_id]
 
+        kind = _kind_label(list_fn_name)
+
         if not exact:
-            raise click.ClickException(f"{list_fn_name}: no item named {name_or_id!r}")
+            raise click.ClickException(f"no {kind} named {name_or_id!r}")
 
         if len(exact) > 1:
             raise click.ClickException(
-                f"{list_fn_name}: multiple items named {name_or_id!r}; pass UUID"
+                f"multiple {kind}s named {name_or_id!r}; pass UUID"
             )
 
         return exact[0]["id"]

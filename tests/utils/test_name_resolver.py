@@ -107,8 +107,10 @@ def test_resolve_raises_when_no_match():
     client = MagicMock()
     client.list_zones.return_value = []
     r = NameResolver(client)
-    with pytest.raises(click.ClickException, match="no item named"):
+    with pytest.raises(click.ClickException, match=r"no zone named") as exc:
         r.resolve("list_zones", "missing")
+    # Should NOT leak the internal list_* method name.
+    assert "list_zones" not in str(exc.value)
 
 
 def test_resolve_raises_when_multiple_matches():
@@ -118,8 +120,21 @@ def test_resolve_raises_when_multiple_matches():
         {"id": "id-2", "name": "dup"},
     ]
     r = NameResolver(client)
-    with pytest.raises(click.ClickException, match="multiple items"):
+    with pytest.raises(click.ClickException, match=r"multiple zones") as exc:
         r.resolve("list_zones", "dup")
+    assert "list_zones" not in str(exc.value)
+
+
+def test_resolve_raises_uses_human_kind_for_known_resources():
+    client = MagicMock()
+    client.list_vms.return_value = []
+    r = NameResolver(client)
+    with pytest.raises(click.ClickException, match=r"no VM named 'foo'"):
+        r.resolve("list_vms", "foo")
+
+    client.list_instance_types.return_value = []
+    with pytest.raises(click.ClickException, match=r"no instance type named 'C-99'"):
+        r.resolve("list_instance_types", "C-99")
 
 
 def test_app_context_creates_resolver():

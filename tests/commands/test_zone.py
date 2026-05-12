@@ -81,4 +81,6 @@ def test_zone_get_unknown_name_raises_user_error():
     runner = CliRunner()
     result = runner.invoke(zone, ["nonexistent"], obj=_app(client))
     assert result.exit_code != 0
-    assert "no item named" in result.output
+    assert "no zone named" in result.output
+    # Should not leak the internal list_* method name.
+    assert "list_zones" not in result.output

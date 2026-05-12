@@ -69,10 +69,51 @@ def test_ssh_forwards_port_identity_login_and_extra_args(monkeypatch):
         "2222",
         "-i",
         "/keys/id_rsa",
+        "root@1.2.3.4",
         "-v",
         "-L",
         "8080:localhost:8080",
-        "root@1.2.3.4",
+    ]
+
+
+def test_ssh_passes_remote_command_after_destination(monkeypatch):
+    """Trailing args (remote command) MUST come after the user@host destination.
+
+    Regression: the wrapper previously appended destination last, which made
+    `eci compute ssh vm-1 echo hello` invoke `ssh echo hello user@ip`. OpenSSH
+    then treats 'echo' as the destination hostname.
+    """
+    captured: dict = {}
+    monkeypatch.setattr(
+        "os.execvp", lambda file, argv: captured.update(file=file, argv=argv)
+    )
+    monkeypatch.setattr("shutil.which", lambda _: "/usr/bin/ssh")
+
+    client = _client_with_ip()
+    result = CliRunner().invoke(vm_ssh, ["demo", "echo", "hello"], obj=_app(client))
+    assert result.exit_code == 0, result.output
+    assert captured["argv"] == ["ssh", "ubuntu@1.2.3.4", "echo", "hello"]
+
+
+def test_ssh_passes_remote_command_with_separator(monkeypatch):
+    captured: dict = {}
+    monkeypatch.setattr(
+        "os.execvp", lambda file, argv: captured.update(file=file, argv=argv)
+    )
+    monkeypatch.setattr("shutil.which", lambda _: "/usr/bin/ssh")
+
+    client = _client_with_ip()
+    result = CliRunner().invoke(
+        vm_ssh, ["demo", "--", "ls", "/var/log"], obj=_app(client)
+    )
+    assert result.exit_code == 0, result.output
+    # Click consumes the `--` separator; remaining args reach ssh as the remote
+    # command after destination.
+    assert captured["argv"] == [
+        "ssh",
+        "ubuntu@1.2.3.4",
+        "ls",
+        "/var/log",
     ]
 
 

@@ -10,7 +10,17 @@ from ...utils import AppContext
 
 @click.command(
     "ssh",
-    help="SSH into a VM via its attached public IP.",
+    help=(
+        "SSH into a VM via its attached public IP.\n"
+        "\n"
+        "\b\n"
+        "Anything after NAME_OR_ID is forwarded to ssh, after the destination.\n"
+        "Use this to run a remote command:\n"
+        "\n"
+        "\b\n"
+        "  eci compute ssh vm-1 echo hello\n"
+        "  eci compute ssh vm-1 -- ls /var/log\n"
+    ),
     context_settings={"ignore_unknown_options": True, "allow_extra_args": True},
 )
 @click.argument("name_or_id")
@@ -61,7 +71,7 @@ def vm_ssh(
         cmd += ["-p", str(port)]
     if identity:
         cmd += ["-i", identity]
-    cmd += list(ssh_args)
     cmd.append(f"{user}@{pip['ip']}")
+    cmd += list(ssh_args)
 
     os.execvp("ssh", cmd)

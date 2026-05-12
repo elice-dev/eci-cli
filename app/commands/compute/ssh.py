@@ -14,25 +14,31 @@ from ...utils import AppContext
         "SSH into a VM via its attached public IP.\n"
         "\n"
         "\b\n"
-        "Anything after NAME_OR_ID is forwarded to ssh, after the destination.\n"
-        "Use this to run a remote command:\n"
+        "Anything after NAME_OR_ID is forwarded to ssh AFTER the destination,\n"
+        "i.e. treated as the remote command. Examples:\n"
         "\n"
         "\b\n"
         "  eci compute ssh vm-1 echo hello\n"
         "  eci compute ssh vm-1 -- ls /var/log\n"
+        "  eci compute ssh vm-1 tail -f /var/log/syslog\n"
+        "\n"
+        "\b\n"
+        "Only the long forms `--login`/`--port`/`--identity` are consumed by\n"
+        "this wrapper (placed BEFORE the destination). The short forms\n"
+        "`-l`/`-p`/`-i` are reserved so that remote commands like\n"
+        "`tail -i /var/log/x` are not accidentally swallowed by the wrapper.\n"
     ),
     context_settings={"ignore_unknown_options": True, "allow_extra_args": True},
 )
 @click.argument("name_or_id")
 @click.option(
-    "-l",
     "--login",
     "login",
     default=None,
     help="SSH login user (defaults to the VM's stored username).",
 )
-@click.option("-p", "--port", default=None, type=int, help="SSH port.")
-@click.option("-i", "--identity", default=None, help="SSH identity file.")
+@click.option("--port", default=None, type=int, help="SSH port.")
+@click.option("--identity", default=None, help="SSH identity file.")
 @click.argument("ssh_args", nargs=-1, type=click.UNPROCESSED)
 @click.pass_obj
 def vm_ssh(

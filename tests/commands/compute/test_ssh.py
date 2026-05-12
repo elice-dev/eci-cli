@@ -37,7 +37,11 @@ def test_ssh_invokes_ssh_with_stored_username(monkeypatch):
     assert captured["argv"] == ["ssh", "ubuntu@1.2.3.4"]
 
 
-def test_ssh_forwards_port_identity_login_and_extra_args(monkeypatch):
+def test_ssh_forwards_long_options_and_extra_args(monkeypatch):
+    """Long-form options (--login/--port/--identity) are placed BEFORE the
+    destination; anything after them goes after the destination as the
+    remote command. Short-form -l/-p/-i are intentionally NOT consumed by
+    this wrapper (see `test_ssh_does_not_swallow_short_flags_in_remote_cmd`)."""
     captured: dict = {}
     monkeypatch.setattr(
         "os.execvp", lambda file, argv: captured.update(file=file, argv=argv)
@@ -49,16 +53,15 @@ def test_ssh_forwards_port_identity_login_and_extra_args(monkeypatch):
         vm_ssh,
         [
             "demo",
-            "-l",
+            "--login",
             "root",
-            "-p",
+            "--port",
             "2222",
-            "-i",
+            "--identity",
             "/keys/id_rsa",
             "--",
-            "-v",
-            "-L",
-            "8080:localhost:8080",
+            "ls",
+            "/var/log",
         ],
         obj=_app(client),
     )
@@ -70,9 +73,60 @@ def test_ssh_forwards_port_identity_login_and_extra_args(monkeypatch):
         "-i",
         "/keys/id_rsa",
         "root@1.2.3.4",
-        "-v",
-        "-L",
-        "8080:localhost:8080",
+        "ls",
+        "/var/log",
+    ]
+
+
+def test_ssh_does_not_swallow_short_flags_in_remote_cmd(monkeypatch):
+    """Regression: `eci compute ssh vm tail -i /var/log/x` must pass `-i`
+    through as part of the remote command, not consume it as an identity
+    file. Previously Click consumed `-i` anywhere in the argv."""
+    captured: dict = {}
+    monkeypatch.setattr(
+        "os.execvp", lambda file, argv: captured.update(file=file, argv=argv)
+    )
+    monkeypatch.setattr("shutil.which", lambda _: "/usr/bin/ssh")
+
+    client = _client_with_ip()
+    result = CliRunner().invoke(
+        vm_ssh,
+        ["demo", "tail", "-i", "/var/log/x"],
+        obj=_app(client),
+    )
+    assert result.exit_code == 0, result.output
+    assert captured["argv"] == [
+        "ssh",
+        "ubuntu@1.2.3.4",
+        "tail",
+        "-i",
+        "/var/log/x",
+    ]
+
+
+def test_ssh_short_flags_passed_through_to_ssh_as_remote_cmd(monkeypatch):
+    """`-l`, `-p`, `-i` are no longer wrapper options; they reach ssh as
+    part of the remote-command tail. Users who want CLI-level handling use
+    `--login`/`--port`/`--identity` instead."""
+    captured: dict = {}
+    monkeypatch.setattr(
+        "os.execvp", lambda file, argv: captured.update(file=file, argv=argv)
+    )
+    monkeypatch.setattr("shutil.which", lambda _: "/usr/bin/ssh")
+
+    client = _client_with_ip()
+    result = CliRunner().invoke(
+        vm_ssh,
+        ["demo", "ps", "-p", "1"],
+        obj=_app(client),
+    )
+    assert result.exit_code == 0, result.output
+    assert captured["argv"] == [
+        "ssh",
+        "ubuntu@1.2.3.4",
+        "ps",
+        "-p",
+        "1",
     ]
 
 

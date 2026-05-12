@@ -70,6 +70,6 @@ def test_instance_type_table_summarizes_devices(mock_client, app_obj):
     result = CliRunner().invoke(instance_type, ["list", "--format", "csv"], obj=app_obj)
     assert result.exit_code == 0, result.output
     lines = result.output.strip().splitlines()
-    assert lines[0] == "name,cpu_vcore,memory_gib,accelerators"
-    assert lines[1] == "C-2,2,4,cpu only"
-    assert lines[2] == "G-NHHS-160,48,480,2x nvidia_h100_80gb_sxm"
+    assert lines[0] == "id,name,cpu_vcore,memory_gib,accelerators"
+    assert lines[1] == "it-cpu,C-2,2,4,cpu only"
+    assert lines[2] == "it-gpu,G-NHHS-160,48,480,2x nvidia_h100_80gb_sxm"

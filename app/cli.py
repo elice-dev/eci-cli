@@ -47,14 +47,13 @@ class _RootGroup(StdoutHelpGroup):
         "\b\n"
         "Get started — first-time setup:\n"
         "  1) Authenticate (pick one):\n"
-        "       eci config init                       # interactive\n"
-        "       eci config set api_token <TOKEN>      # non-interactive\n"
-        "  2) eci config set zone_id auto\n"
-        "  3) eci config verify\n"
+        "       eci config init                # interactive — sets everything\n"
+        "       eci config set <key> <value>   # non-interactive; see: eci config set -h\n"
+        "  2) eci config verify\n"
         "\n"
         "\b\n"
         "Daily use:\n"
-        "  eci compute vm launch                      # see -h\n"
+        "  eci compute vm launch              # see -h\n"
     ),
     context_settings={"help_option_names": ["-h", "--help", "-help"]},
 )

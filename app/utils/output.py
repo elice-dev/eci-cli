@@ -118,7 +118,12 @@ def render_list(
     resolver: NameResolver,
     column_labels: dict[str, str] | None = None,
 ) -> None:
-    cols = _columns_from_query(query) if query else list(default_columns)
+    if query:
+        cols = _columns_from_query(query)
+    else:
+        cols = list(default_columns)
+        if "id" not in cols:
+            cols.insert(0, "id")
 
     if fmt == "json":
         _emit_json(

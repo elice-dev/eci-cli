@@ -9,6 +9,7 @@ import click
 from ...client import (
     BlockStorageStatus,
     PricingResourceKind,
+    VMAllocationStatus,
     VMStatus,
     is_active_allocation,
 )
@@ -102,17 +103,23 @@ def _ensure_default_subnet(app: AppContext) -> str:
         "Launch a VM end-to-end (VM + disk + NIC + IP + start).\n"
         "\n"
         "\b\n"
-        "Required: --name (and --password unless --no-start).\n"
+        "Required: --password.\n"
         "\n"
         "Other launch fields use sensible defaults. In a terminal they\n"
         "prompt with the default pre-filled; for non-interactive callers\n"
-        "the default is applied silently. For CPU instance types (C-/M-)\n"
-        "the default image is Ubuntu 24.04 LTS (Standard) with 20 GiB;\n"
-        "for GPU/NPU instance types (G-/N-) the default is Ubuntu 24.04\n"
-        "LTS (AI/GPU) with 50 GiB (NVIDIA drivers + CUDA pre-installed).\n"
+        "the default is applied silently (except --name, which must be\n"
+        "passed explicitly). For CPU instance types (C-/M-) the default\n"
+        "image is Ubuntu 24.04 LTS (Standard) with 20 GiB; for GPU/NPU\n"
+        "instance types (G-/N-) the default is Ubuntu 24.04 LTS (AI/GPU)\n"
+        "with 50 GiB (NVIDIA drivers + CUDA pre-installed).\n"
         "\n"
         "If --subnet is omitted, a default vnet/subnet ('eci-default-vnet' /\n"
         "'eci-default-subnet') is created on first use and reused after.\n"
+        "\n"
+        "Default OS login user is 'ubuntu' (override with --username).\n"
+        "\n"
+        "`launch` returns as soon as the start request is accepted; pass\n"
+        "--wait to block until the VM reaches 'started'.\n"
         "\n"
         "\b\n"
         "Password rules (enforced by the API):\n"
@@ -121,38 +128,39 @@ def _ensure_default_subnet(app: AppContext) -> str:
         "\n"
         "\b\n"
         "Examples:\n"
-        "  # Easiest — only --name; everything else prompted with defaults\n"
-        "  eci compute vm launch --name web-1\n"
+        "  # Easiest — every field prompted with a default\n"
+        "  eci compute vm launch\n"
         "\n"
         "\b\n"
         "  # Fully non-interactive\n"
-        "  eci compute vm launch --name web-1 \\\n"
+        "  eci compute vm launch --name vm-1 \\\n"
         "      --instance-type C-2 --image 'Ubuntu 24.04 LTS (Standard)' \\\n"
         "      --size-gib 20 --password 'Vk7m@p2qLn5!'\n"
         "\n"
         "\b\n"
         "  # Spot price\n"
-        "  eci compute vm launch --name web-1 --price-type spot ... (other args)\n"
+        "  eci compute vm launch --name vm-1 --price-type spot ... (other args)\n"
         "\n"
         "\b\n"
         "  # Reuse a saved spec (see `eci vm-spec save -h`)\n"
-        "  eci compute vm launch --name web-2 --spec default --password '...'\n"
+        "  eci compute vm launch --name vm-2 --spec default --password '...'\n"
         "\n"
         "\b\n"
         "  # Reuse an existing disk; create new NIC + IP\n"
-        "  eci compute vm launch --name web-3 --block-storage existing-disk \\\n"
+        "  eci compute vm launch --name vm-3 --block-storage existing-disk \\\n"
         "      --instance-type C-2 --subnet my-subnet --password '...'\n"
     ),
 )
 @click.option(
-    "--name", required=True, help="VM name (also used as prefix for disk/NIC)."
+    "--name",
+    default=None,
+    help="VM name (also used as prefix for disk/NIC). Prompted if omitted.",
 )
 @click.option(
     "--password",
     default=None,
     help=(
-        "OS root password. Required unless --no-start. "
-        "Needs 3+ char classes and no 3+ char sequence."
+        "OS root password (required). Needs 3+ char classes and no 3+ char sequence."
     ),
 )
 @click.option(
@@ -230,10 +238,15 @@ def _ensure_default_subnet(app: AppContext) -> str:
 @click.option("--no-network", is_flag=True, help="Skip NIC + public IP.")
 @click.option("--no-public-ip", is_flag=True, help="Create NIC but skip public IP.")
 @click.option("--no-start", is_flag=True, help="Skip the boot step.")
+@click.option(
+    "--wait",
+    is_flag=True,
+    help="Wait for the VM to reach 'started' before returning.",
+)
 @click.pass_obj
 def vm_launch(
     app: AppContext,
-    name: str,
+    name: str | None,
     password: str | None,
     username: str | None,
     instance_type: str | None,
@@ -252,6 +265,7 @@ def vm_launch(
     no_network: bool,
     no_public_ip: bool,
     no_start: bool,
+    wait: bool,
 ) -> None:
     if block_storage and (size_gib is not None or image is not None):
         raise click.ClickException(
@@ -259,6 +273,11 @@ def vm_launch(
         )
     if nic_arg and subnet is not None:
         raise click.ClickException("--nic conflicts with --subnet")
+
+    if not name:
+        if not _is_tty():
+            _require_in_non_tty("NAME", "name")
+        name = click.prompt("name", default="vm-1")
 
     cfg = Config.load()
     explicit = {
@@ -509,6 +528,42 @@ def vm_launch(
         raise
 
     emit_action_result(out)
+
+    if not no_start and not no_network and not no_public_ip:
+        raw_start = out.get("start")
+        start_info: dict = raw_start if isinstance(raw_start, dict) else {}
+        alloc_id = start_info.get("id")
+        final_status: str = start_info.get("status") or "queued"
+
+        if alloc_id and wait:
+            click.echo("\nwaiting for VM to start...", err=True)
+            try:
+                latest = app.client.wait_for_status(
+                    lambda: app.client.get_allocation(alloc_id),
+                    {VMAllocationStatus.started.value},
+                    timeout=300,
+                    interval=3,
+                )
+                final_status = latest.get("status", final_status)
+            except TimeoutError:
+                try:
+                    final_status = app.client.get_allocation(alloc_id).get(
+                        "status", final_status
+                    )
+                except Exception:
+                    pass
+
+        click.echo(f"\nstatus: {final_status}", err=True)
+        if final_status == VMAllocationStatus.started.value:
+            click.echo(
+                f"SSH: eci compute ssh {name}   # login user: {username}",
+                err=True,
+            )
+        else:
+            click.echo(
+                f"once started: eci compute ssh {name}   # login user: {username}",
+                err=True,
+            )
 
     if spec_name and spec is not None:
         spec_subnet = spec.get("subnet") or spec.get("subnet_id")

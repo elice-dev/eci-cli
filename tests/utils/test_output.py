@@ -82,12 +82,27 @@ def test_render_list_json_with_query(capsys):
 
 def test_render_list_csv(capsys):
     resolver = MagicMock(spec=NameResolver)
-    items = [{"name": "vm1", "status": "ready"}]
+    items = [{"id": "vm-uuid-1", "name": "vm1", "status": "ready"}]
     render_list(
         items,
         default_columns=["name", "status"],
         fmt="csv",
         query=None,
+        resolver=resolver,
+    )
+    out = capsys.readouterr().out.strip().splitlines()
+    assert out[0] == "id,name,status"
+    assert out[1] == "vm-uuid-1,vm1,ready"
+
+
+def test_render_list_csv_respects_explicit_query(capsys):
+    resolver = MagicMock(spec=NameResolver)
+    items = [{"id": "vm-uuid-1", "name": "vm1", "status": "ready"}]
+    render_list(
+        items,
+        default_columns=["name", "status"],
+        fmt="csv",
+        query="name,status",
         resolver=resolver,
     )
     out = capsys.readouterr().out.strip().splitlines()

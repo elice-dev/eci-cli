@@ -3,6 +3,7 @@ from __future__ import annotations
 import enum
 import json
 import time
+import uuid
 from typing import Any, Callable
 from urllib.parse import urlparse
 
@@ -111,13 +112,18 @@ class ECIClient:
             }
         )
 
+        # Only retry idempotent verbs by default. Auto-retrying POST/PATCH on
+        # 502/504 risks creating duplicate resources when the server processed
+        # the first request but the response was lost in transit (e.g. a
+        # transient gateway timeout during `vm launch` → two VMs created).
+        # We still send an Idempotency-Key header on each POST/PATCH (see
+        # `post`/`patch` below) so the server *could* dedupe; until that's
+        # in place, refusing to retry is the safer default.
         retry = Retry(
             total=3,
             backoff_factor=0.5,
             status_forcelist=(429, 502, 503, 504),
-            allowed_methods=frozenset(
-                ["GET", "HEAD", "OPTIONS", "PUT", "DELETE", "POST", "PATCH"]
-            ),
+            allowed_methods=frozenset(["GET", "HEAD", "OPTIONS", "PUT", "DELETE"]),
             respect_retry_after_header=True,
             raise_on_status=False,
         )
@@ -151,10 +157,23 @@ class ECIClient:
         return self._request("GET", path, params=params)
 
     def post(self, path: str, body: dict) -> Any:
-        return self._request("POST", path, json=body)
+        # Idempotency-Key lets the server deduplicate retried writes. We
+        # don't auto-retry POSTs ourselves, but operators (proxies, scripts
+        # using `requests` Sessions, etc.) might.
+        return self._request(
+            "POST",
+            path,
+            json=body,
+            headers={"Idempotency-Key": str(uuid.uuid4())},
+        )
 
     def patch(self, path: str, body: dict) -> Any:
-        return self._request("PATCH", path, json=body)
+        return self._request(
+            "PATCH",
+            path,
+            json=body,
+            headers={"Idempotency-Key": str(uuid.uuid4())},
+        )
 
     def delete(self, path: str) -> Any:
         return self._request("DELETE", path)

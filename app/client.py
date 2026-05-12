@@ -29,6 +29,7 @@ class VMAllocationStatus(enum.StrEnum):
     @property
     def is_active(self) -> bool:
         return self in {
+            VMAllocationStatus.queued,
             VMAllocationStatus.assigned,
             VMAllocationStatus.taken,
             VMAllocationStatus.started,

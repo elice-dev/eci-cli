@@ -234,11 +234,24 @@ def test_list_vms_skips_allocation_lookup_when_none_allocated(client, make_resp)
     assert client.session.request.call_count == 1
 
 
-def test_list_vms_keeps_allocated_when_only_inactive_allocations(client, make_resp):
+def test_list_vms_surfaces_queued_allocation_status(client, make_resp):
     vms = [{"id": "v1", "name": "a", "status": "allocated"}]
     allocs = [
         {"id": "a1", "machine_id": "v1", "status": "queued"},
         {"id": "a2", "machine_id": "v1", "status": "terminated"},
+    ]
+    client.session.request.side_effect = [
+        make_resp(200, json_body=vms),
+        make_resp(200, json_body=allocs),
+    ]
+    out = client.list_vms()
+    assert out[0]["status"] == "queued"
+
+
+def test_list_vms_keeps_allocated_when_all_terminated(client, make_resp):
+    vms = [{"id": "v1", "name": "a", "status": "allocated"}]
+    allocs = [
+        {"id": "a1", "machine_id": "v1", "status": "terminated"},
     ]
     client.session.request.side_effect = [
         make_resp(200, json_body=vms),

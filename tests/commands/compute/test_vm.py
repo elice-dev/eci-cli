@@ -434,12 +434,30 @@ def test_vm_stop_errors_when_no_allocations():
     assert "no active allocation" in result.output
 
 
-def test_vm_stop_errors_when_only_inactive_allocations():
+def test_vm_stop_deletes_queued_allocation():
+    """Regression: queued allocations must count as active so freshly-launched
+    VMs can be stopped before they reach 'started'. Previously this fell
+    through to 'all allocations already terminated'."""
+    client = MagicMock()
+    client.list_vms.return_value = [{"id": "vm-1", "name": "demo"}]
+    client.list_allocations.return_value = [
+        {"id": "a-old", "status": "terminated"},
+        {"id": "a-queued", "status": "queued"},
+    ]
+    client.delete_allocation.return_value = {"id": "a-queued"}
+
+    runner = CliRunner()
+    result = runner.invoke(vm, ["stop", "demo"], obj=_app(client))
+    assert result.exit_code == 0, result.output
+    client.delete_allocation.assert_called_once_with("a-queued")
+
+
+def test_vm_stop_errors_when_all_allocations_terminated():
     client = MagicMock()
     client.list_vms.return_value = [{"id": "vm-1", "name": "demo"}]
     client.list_allocations.return_value = [
         {"id": "a1", "status": "terminated"},
-        {"id": "a2", "status": "queued"},
+        {"id": "a2", "status": "terminated"},
     ]
 
     runner = CliRunner()

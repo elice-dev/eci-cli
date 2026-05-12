@@ -693,10 +693,9 @@ def vm_launch(
                 nics_for_ip = app.client.list_nics(attached_machine_id=vm_id)
                 nic_ids_for_ip = {n["id"] for n in nics_for_ip}
                 for ip in app.client.list_public_ips():
-                    if (
-                        ip.get("attached_network_interface_id") in nic_ids_for_ip
-                        and ip.get("ip")
-                    ):
+                    if ip.get(
+                        "attached_network_interface_id"
+                    ) in nic_ids_for_ip and ip.get("ip"):
                         public_ip_value = ip["ip"]
                         break
             except Exception:

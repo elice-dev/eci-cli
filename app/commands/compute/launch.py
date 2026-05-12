@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import datetime as _dt
 import sys
+import uuid as _uuid
 from functools import partial
 from typing import Any, Callable
 
@@ -376,7 +377,9 @@ def vm_launch(
     if not name:
         if not _is_tty():
             _require_in_non_tty("NAME", "name")
-        default_name = "vm-" + _dt.datetime.now().strftime("%Y%m%d-%H%M")
+        default_name = (
+            "vm-" + _dt.datetime.now().strftime("%Y%m%d") + "-" + _uuid.uuid4().hex[:6]
+        )
         name = click.prompt("name", default=default_name)
 
     cfg = Config.load()

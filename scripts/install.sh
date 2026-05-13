@@ -53,7 +53,17 @@ detect_os() {
 
 detect_arch() {
   case "$(uname -m)" in
-    x86_64 | amd64) echo "x86_64" ;;
+    x86_64 | amd64)
+      # Apple Silicon under Rosetta reports x86_64. The real hardware is
+      # arm64, and downloading an Intel binary on a machine that only
+      # has the arm64 release would 404. Detect translation and correct.
+      if [ "$(uname -s)" = "Darwin" ] \
+         && [ "$(sysctl -n sysctl.proc_translated 2>/dev/null)" = "1" ]; then
+        echo "arm64"
+      else
+        echo "x86_64"
+      fi
+      ;;
     aarch64 | arm64) echo "arm64" ;;
     *)
       printf "Error: unsupported architecture: %s\n" "$(uname -m)" >&2

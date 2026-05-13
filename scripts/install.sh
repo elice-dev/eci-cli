@@ -275,9 +275,7 @@ main() {
       ;;
   esac
 
-  printf "\nGet started:\n"
-  printf "  %s config init\n" "$BINARY_NAME"
-  printf "  %s --help\n" "$BINARY_NAME"
+  printf "\nRun '%s --help' to get started.\n" "$BINARY_NAME"
 }
 
 main

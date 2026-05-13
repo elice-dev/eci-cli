@@ -53,7 +53,16 @@ detect_os() {
 
 detect_arch() {
   case "$(uname -m)" in
-    x86_64 | amd64) echo "x86_64" ;;
+    x86_64 | amd64)
+      # Apple Silicon under Rosetta reports x86_64 here; the arm64-only
+      # release would 404. sysctl.proc_translated == 1 means we're translated.
+      if [ "$(uname -s)" = "Darwin" ] \
+         && [ "$(sysctl -n sysctl.proc_translated 2>/dev/null)" = "1" ]; then
+        echo "arm64"
+      else
+        echo "x86_64"
+      fi
+      ;;
     aarch64 | arm64) echo "arm64" ;;
     *)
       printf "Error: unsupported architecture: %s\n" "$(uname -m)" >&2
@@ -128,40 +137,64 @@ main() {
   tmpdir="$(mktemp -d)"
   trap 'rm -rf "$tmpdir"' EXIT
 
+  existing_version=""
+  if [ -x "$install_dir/$BINARY_NAME" ]; then
+    existing_version="$("$install_dir/$BINARY_NAME" --version 2>/dev/null | awk '{print $NF}')" || existing_version=""
+  fi
+
   if [ -n "$FROM_DIR" ]; then
     if [ ! -x "${FROM_DIR}/${BINARY_NAME}" ]; then
       printf "Error: %s/%s not found or not executable\n" "$FROM_DIR" "$BINARY_NAME" >&2
       exit 1
     fi
-    printf "Installing %s from %s (%s/%s)\n" "$BINARY_NAME" "$FROM_DIR" "$os" "$arch"
-    printf "  bundle: %s\n" "$root_dir"
-    printf "  launcher: %s/%s\n" "$install_dir" "$BINARY_NAME"
+    version="local build"
+    source_label="$FROM_DIR"
+  else
+    version="$(resolve_version)"
+    source_label="GitHub Releases (v${version})"
+  fi
 
+  printf "\n"
+  printf "  ECI CLI installer\n"
+  if [ -n "$FROM_DIR" ]; then
+    printf "  Action:    install (local build)\n"
+  elif [ -n "$existing_version" ] && [ "$existing_version" != "$version" ]; then
+    printf "  Action:    upgrade %s → %s\n" "$existing_version" "$version"
+  elif [ -n "$existing_version" ]; then
+    printf "  Action:    reinstall %s\n" "$version"
+  else
+    printf "  Action:    install %s\n" "$version"
+  fi
+  printf "  Platform:  %s %s\n" "$os" "$arch"
+  printf "  Source:    %s\n" "$source_label"
+  printf "  Bundle:    %s\n" "$root_dir"
+  printf "  Launcher:  %s/%s\n" "$install_dir" "$BINARY_NAME"
+  printf "\n"
+
+  if [ -n "$FROM_DIR" ]; then
     bundle_dir="${tmpdir}/bundle"
     cp -R "$FROM_DIR" "$bundle_dir"
   else
-    version="$(resolve_version)"
     asset="${BINARY_NAME}-${os}-${arch}-${version}.tar.gz"
     url="${RELEASE_BASE}/v${version}/${asset}"
 
-    printf "Installing %s v%s (%s/%s)\n" "$BINARY_NAME" "$version" "$os" "$arch"
-    printf "  bundle: %s\n" "$root_dir"
-    printf "  launcher: %s/%s\n" "$install_dir" "$BINARY_NAME"
-
     printf "Downloading...\n"
-    curl -fsSL -o "${tmpdir}/${asset}" "$url"
+    # --progress-bar shows a real bar; -fL keeps fail-on-error + follow.
+    curl -fL --progress-bar -o "${tmpdir}/${asset}" "$url"
     curl -fsSL -o "${tmpdir}/checksums.txt" "${RELEASE_BASE}/v${version}/checksums.txt"
 
-    printf "Verifying checksum...\n"
+    printf "Verifying...  "
     expected="$(grep "${asset}" "${tmpdir}/checksums.txt" | awk '{print $1}')"
     if [ -z "$expected" ]; then
-      printf "Error: checksum not found for %s in checksums.txt\n" "$asset" >&2
+      printf "\nError: checksum not found for %s in checksums.txt\n" "$asset" >&2
       exit 1
     fi
     verify_checksum "${tmpdir}/${asset}" "$expected"
+    printf "✓\n"
 
-    printf "Extracting...\n"
+    printf "Extracting... "
     tar xzf "${tmpdir}/${asset}" -C "$tmpdir"
+    printf "✓\n"
 
     bundle_dir="${tmpdir}/${BINARY_NAME}-${os}-${arch}-${version}"
     if [ ! -d "$bundle_dir" ]; then
@@ -193,17 +226,56 @@ main() {
   printf "\nInstalled %s to %s/%s\n" "$BINARY_NAME" "$install_dir" "$BINARY_NAME"
 
   case ":${PATH}:" in
-    *":${install_dir}:"*) ;;
+    *":${install_dir}:"*)
+      ;;
     *)
-      printf "\nWarning: %s is not in PATH.\n" "$install_dir"
-      printf "Add this to your shell rc:\n"
-      printf "  export PATH=\"%s:\$PATH\"\n" "$install_dir"
+      profile=""
+      # Idempotency marker — match against this instead of $install_dir, which
+      # would false-positive on a similar prefix (e.g. ~/.local/bin-old).
+      marker="# Added by eci-cli installer"
+
+      case "${SHELL:-}" in
+        */zsh)  profile="$HOME/.zshrc" ;;
+        */bash)
+          # macOS Terminal.app reads ~/.bash_profile (login shell); Linux reads ~/.bashrc.
+          if [ "$os" = "darwin" ]; then
+            profile="$HOME/.bash_profile"
+          else
+            profile="$HOME/.bashrc"
+          fi
+          ;;
+        */fish) profile="$HOME/.config/fish/config.fish" ;;
+      esac
+
+      if [ -n "$profile" ]; then
+        mkdir -p "$(dirname "$profile")"
+        touch "$profile"
+        if grep -qsF "$marker" "$profile" 2>/dev/null; then
+          printf "\nPATH already configured in %s.\n" "$profile"
+        else
+          if [ "$profile" = "$HOME/.config/fish/config.fish" ]; then
+            {
+              printf "\n%s\n" "$marker"
+              printf "set -gx PATH %s \$PATH\n" "$install_dir"
+            } >> "$profile"
+          else
+            {
+              printf "\n%s\n" "$marker"
+              printf 'export PATH="%s:$PATH"\n' "$install_dir"
+            } >> "$profile"
+          fi
+          printf "\nAdded %s to PATH in %s\n" "$install_dir" "$profile"
+        fi
+        printf "Restart your shell or run: source %s\n" "$profile"
+      else
+        printf "\nWarning: %s is not in PATH.\n" "$install_dir"
+        printf "Add this to your shell rc:\n"
+        printf "  export PATH=\"%s:\$PATH\"\n" "$install_dir"
+      fi
       ;;
   esac
 
-  printf "\nGet started:\n"
-  printf "  %s config init\n" "$BINARY_NAME"
-  printf "  %s --help\n" "$BINARY_NAME"
+  printf "\nRun '%s --help' to get started.\n" "$BINARY_NAME"
 }
 
 main

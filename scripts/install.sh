@@ -209,15 +209,18 @@ main() {
       # Try to add to the user's shell profile automatically (bun / uv style).
       # Falls back to manual instructions for shells we don't recognize.
       profile=""
+      # Sentinel comment we use to detect a prior installer run, so re-running
+      # the installer doesn't append a duplicate PATH line. Using a marker is
+      # more accurate than grepping `$install_dir`, which would false-positive
+      # on a similar-but-different path already present (e.g. ~/.local/bin-old).
+      marker="# Added by eci-cli installer"
+
       case "${SHELL:-}" in
         */zsh)  profile="$HOME/.zshrc" ;;
         */bash)
           # On macOS Terminal.app, bash is a login shell and reads
-          # ~/.bash_profile (not ~/.bashrc). On Linux it usually reads
-          # ~/.bashrc. Pick the file the user is likely to actually load.
-          if [ "$os" = "darwin" ] && [ -f "$HOME/.bash_profile" ]; then
-            profile="$HOME/.bash_profile"
-          elif [ "$os" = "darwin" ]; then
+          # ~/.bash_profile (not ~/.bashrc); Linux usually reads ~/.bashrc.
+          if [ "$os" = "darwin" ]; then
             profile="$HOME/.bash_profile"
           else
             profile="$HOME/.bashrc"
@@ -229,22 +232,24 @@ main() {
       if [ -n "$profile" ]; then
         mkdir -p "$(dirname "$profile")"
         touch "$profile"
-        if grep -qsF "$install_dir" "$profile" 2>/dev/null; then
-          printf "\n%s is already referenced in %s.\n" "$install_dir" "$profile"
+        if grep -qsF "$marker" "$profile" 2>/dev/null; then
+          printf "\nPATH already configured in %s.\n" "$profile"
         else
           if [ "$profile" = "$HOME/.config/fish/config.fish" ]; then
             {
-              printf "\n# Added by eci-cli installer\n"
+              printf "\n%s\n" "$marker"
               printf "set -gx PATH %s \$PATH\n" "$install_dir"
             } >> "$profile"
           else
             {
-              printf "\n# Added by eci-cli installer\n"
+              printf "\n%s\n" "$marker"
               printf 'export PATH="%s:$PATH"\n' "$install_dir"
             } >> "$profile"
           fi
           printf "\nAdded %s to PATH in %s\n" "$install_dir" "$profile"
         fi
+        # The current shell still doesn't have install_dir on PATH (that's why
+        # we entered this branch). Tell the user how to activate it.
         printf "Restart your shell or run: source %s\n" "$profile"
       else
         printf "\nWarning: %s is not in PATH.\n" "$install_dir"

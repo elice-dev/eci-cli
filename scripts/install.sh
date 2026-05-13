@@ -138,40 +138,68 @@ main() {
   tmpdir="$(mktemp -d)"
   trap 'rm -rf "$tmpdir"' EXIT
 
+  # Detect any existing install so we can show a clear "upgrade from X to Y"
+  # line. Best-effort — if the binary is broken or missing, version stays "".
+  existing_version=""
+  if [ -x "$install_dir/$BINARY_NAME" ]; then
+    existing_version="$("$install_dir/$BINARY_NAME" --version 2>/dev/null | awk '{print $NF}')" || existing_version=""
+  fi
+
   if [ -n "$FROM_DIR" ]; then
     if [ ! -x "${FROM_DIR}/${BINARY_NAME}" ]; then
       printf "Error: %s/%s not found or not executable\n" "$FROM_DIR" "$BINARY_NAME" >&2
       exit 1
     fi
-    printf "Installing %s from %s (%s/%s)\n" "$BINARY_NAME" "$FROM_DIR" "$os" "$arch"
-    printf "  bundle: %s\n" "$root_dir"
-    printf "  launcher: %s/%s\n" "$install_dir" "$BINARY_NAME"
+    version="local build"
+    source_label="$FROM_DIR"
+  else
+    version="$(resolve_version)"
+    source_label="GitHub Releases (v${version})"
+  fi
 
+  # Header block
+  printf "\n"
+  printf "  ECI CLI installer\n"
+  if [ -n "$FROM_DIR" ]; then
+    printf "  Action:    install (local build)\n"
+  elif [ -n "$existing_version" ] && [ "$existing_version" != "$version" ]; then
+    printf "  Action:    upgrade %s → %s\n" "$existing_version" "$version"
+  elif [ -n "$existing_version" ]; then
+    printf "  Action:    reinstall %s\n" "$version"
+  else
+    printf "  Action:    install %s\n" "$version"
+  fi
+  printf "  Platform:  %s %s\n" "$os" "$arch"
+  printf "  Source:    %s\n" "$source_label"
+  printf "  Bundle:    %s\n" "$root_dir"
+  printf "  Launcher:  %s/%s\n" "$install_dir" "$BINARY_NAME"
+  printf "\n"
+
+  if [ -n "$FROM_DIR" ]; then
     bundle_dir="${tmpdir}/bundle"
     cp -R "$FROM_DIR" "$bundle_dir"
   else
-    version="$(resolve_version)"
     asset="${BINARY_NAME}-${os}-${arch}-${version}.tar.gz"
     url="${RELEASE_BASE}/v${version}/${asset}"
 
-    printf "Installing %s v%s (%s/%s)\n" "$BINARY_NAME" "$version" "$os" "$arch"
-    printf "  bundle: %s\n" "$root_dir"
-    printf "  launcher: %s/%s\n" "$install_dir" "$BINARY_NAME"
-
     printf "Downloading...\n"
-    curl -fsSL -o "${tmpdir}/${asset}" "$url"
+    # `--progress-bar` shows a real bar instead of curl's verbose meter;
+    # `-fL` keeps fail-on-HTTP-error + follow-redirects.
+    curl -fL --progress-bar -o "${tmpdir}/${asset}" "$url"
     curl -fsSL -o "${tmpdir}/checksums.txt" "${RELEASE_BASE}/v${version}/checksums.txt"
 
-    printf "Verifying checksum...\n"
+    printf "Verifying...  "
     expected="$(grep "${asset}" "${tmpdir}/checksums.txt" | awk '{print $1}')"
     if [ -z "$expected" ]; then
-      printf "Error: checksum not found for %s in checksums.txt\n" "$asset" >&2
+      printf "\nError: checksum not found for %s in checksums.txt\n" "$asset" >&2
       exit 1
     fi
     verify_checksum "${tmpdir}/${asset}" "$expected"
+    printf "✓\n"
 
-    printf "Extracting...\n"
+    printf "Extracting... "
     tar xzf "${tmpdir}/${asset}" -C "$tmpdir"
+    printf "✓\n"
 
     bundle_dir="${tmpdir}/${BINARY_NAME}-${os}-${arch}-${version}"
     if [ ! -d "$bundle_dir" ]; then

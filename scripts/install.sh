@@ -203,11 +203,54 @@ main() {
   printf "\nInstalled %s to %s/%s\n" "$BINARY_NAME" "$install_dir" "$BINARY_NAME"
 
   case ":${PATH}:" in
-    *":${install_dir}:"*) ;;
+    *":${install_dir}:"*)
+      ;;
     *)
-      printf "\nWarning: %s is not in PATH.\n" "$install_dir"
-      printf "Add this to your shell rc:\n"
-      printf "  export PATH=\"%s:\$PATH\"\n" "$install_dir"
+      # Try to add to the user's shell profile automatically (bun / uv style).
+      # Falls back to manual instructions for shells we don't recognize.
+      profile=""
+      case "${SHELL:-}" in
+        */zsh)  profile="$HOME/.zshrc" ;;
+        */bash)
+          # On macOS Terminal.app, bash is a login shell and reads
+          # ~/.bash_profile (not ~/.bashrc). On Linux it usually reads
+          # ~/.bashrc. Pick the file the user is likely to actually load.
+          if [ "$os" = "darwin" ] && [ -f "$HOME/.bash_profile" ]; then
+            profile="$HOME/.bash_profile"
+          elif [ "$os" = "darwin" ]; then
+            profile="$HOME/.bash_profile"
+          else
+            profile="$HOME/.bashrc"
+          fi
+          ;;
+        */fish) profile="$HOME/.config/fish/config.fish" ;;
+      esac
+
+      if [ -n "$profile" ]; then
+        mkdir -p "$(dirname "$profile")"
+        touch "$profile"
+        if grep -qsF "$install_dir" "$profile" 2>/dev/null; then
+          printf "\n%s is already referenced in %s.\n" "$install_dir" "$profile"
+        else
+          if [ "$profile" = "$HOME/.config/fish/config.fish" ]; then
+            {
+              printf "\n# Added by eci-cli installer\n"
+              printf "set -gx PATH %s \$PATH\n" "$install_dir"
+            } >> "$profile"
+          else
+            {
+              printf "\n# Added by eci-cli installer\n"
+              printf 'export PATH="%s:$PATH"\n' "$install_dir"
+            } >> "$profile"
+          fi
+          printf "\nAdded %s to PATH in %s\n" "$install_dir" "$profile"
+        fi
+        printf "Restart your shell or run: source %s\n" "$profile"
+      else
+        printf "\nWarning: %s is not in PATH.\n" "$install_dir"
+        printf "Add this to your shell rc:\n"
+        printf "  export PATH=\"%s:\$PATH\"\n" "$install_dir"
+      fi
       ;;
   esac
 

@@ -54,9 +54,8 @@ detect_os() {
 detect_arch() {
   case "$(uname -m)" in
     x86_64 | amd64)
-      # Apple Silicon under Rosetta reports x86_64. The real hardware is
-      # arm64, and downloading an Intel binary on a machine that only
-      # has the arm64 release would 404. Detect translation and correct.
+      # Apple Silicon under Rosetta reports x86_64 here; the arm64-only
+      # release would 404. sysctl.proc_translated == 1 means we're translated.
       if [ "$(uname -s)" = "Darwin" ] \
          && [ "$(sysctl -n sysctl.proc_translated 2>/dev/null)" = "1" ]; then
         echo "arm64"
@@ -138,8 +137,6 @@ main() {
   tmpdir="$(mktemp -d)"
   trap 'rm -rf "$tmpdir"' EXIT
 
-  # Detect any existing install so we can show a clear "upgrade from X to Y"
-  # line. Best-effort — if the binary is broken or missing, version stays "".
   existing_version=""
   if [ -x "$install_dir/$BINARY_NAME" ]; then
     existing_version="$("$install_dir/$BINARY_NAME" --version 2>/dev/null | awk '{print $NF}')" || existing_version=""
@@ -157,7 +154,6 @@ main() {
     source_label="GitHub Releases (v${version})"
   fi
 
-  # Header block
   printf "\n"
   printf "  ECI CLI installer\n"
   if [ -n "$FROM_DIR" ]; then
@@ -183,8 +179,7 @@ main() {
     url="${RELEASE_BASE}/v${version}/${asset}"
 
     printf "Downloading...\n"
-    # `--progress-bar` shows a real bar instead of curl's verbose meter;
-    # `-fL` keeps fail-on-HTTP-error + follow-redirects.
+    # --progress-bar shows a real bar; -fL keeps fail-on-error + follow.
     curl -fL --progress-bar -o "${tmpdir}/${asset}" "$url"
     curl -fsSL -o "${tmpdir}/checksums.txt" "${RELEASE_BASE}/v${version}/checksums.txt"
 
@@ -234,20 +229,15 @@ main() {
     *":${install_dir}:"*)
       ;;
     *)
-      # Try to add to the user's shell profile automatically (bun / uv style).
-      # Falls back to manual instructions for shells we don't recognize.
       profile=""
-      # Sentinel comment we use to detect a prior installer run, so re-running
-      # the installer doesn't append a duplicate PATH line. Using a marker is
-      # more accurate than grepping `$install_dir`, which would false-positive
-      # on a similar-but-different path already present (e.g. ~/.local/bin-old).
+      # Idempotency marker — match against this instead of $install_dir, which
+      # would false-positive on a similar prefix (e.g. ~/.local/bin-old).
       marker="# Added by eci-cli installer"
 
       case "${SHELL:-}" in
         */zsh)  profile="$HOME/.zshrc" ;;
         */bash)
-          # On macOS Terminal.app, bash is a login shell and reads
-          # ~/.bash_profile (not ~/.bashrc); Linux usually reads ~/.bashrc.
+          # macOS Terminal.app reads ~/.bash_profile (login shell); Linux reads ~/.bashrc.
           if [ "$os" = "darwin" ]; then
             profile="$HOME/.bash_profile"
           else
@@ -276,8 +266,6 @@ main() {
           fi
           printf "\nAdded %s to PATH in %s\n" "$install_dir" "$profile"
         fi
-        # The current shell still doesn't have install_dir on PATH (that's why
-        # we entered this branch). Tell the user how to activate it.
         printf "Restart your shell or run: source %s\n" "$profile"
       else
         printf "\nWarning: %s is not in PATH.\n" "$install_dir"

@@ -143,7 +143,6 @@ function Install-EciCli {
         Write-Host ""
         Write-Host "Installed $BinaryName to $exePath"
 
-        $marker  = '# Added by eci-cli installer'
         $userPath = [Environment]::GetEnvironmentVariable('PATH', 'User')
         $paths    = if ($userPath) { $userPath -split ';' | Where-Object { $_ } } else { @() }
 
@@ -152,10 +151,17 @@ function Install-EciCli {
             [Environment]::SetEnvironmentVariable('PATH', $newPath, 'User')
             Write-Host ""
             Write-Host "Added $rootDir to PATH (User scope)"
-            Write-Host "Open a new terminal to pick up the change."
         } else {
             Write-Host ""
             Write-Host "PATH already includes $rootDir."
+        }
+
+        # Persistent registry update above doesn't refresh this PowerShell
+        # session's PATH snapshot. Mirror the change into $env:PATH so
+        # 'eci ...' works in the same terminal right after install.
+        $sessionPaths = ($env:PATH -split ';') | Where-Object { $_ }
+        if ($sessionPaths -notcontains $rootDir) {
+            $env:PATH = "$env:PATH;$rootDir"
         }
 
         Write-Host ""

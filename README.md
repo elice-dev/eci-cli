@@ -10,14 +10,23 @@ Launch and manage compute, network, and storage resources from your terminal.
 
 ## Install
 
+### macOS / Linux
+
 ```bash
 curl -fsSL https://raw.githubusercontent.com/elice-dev/eci-cli/main/scripts/install.sh | sh
+```
+
+### Windows (PowerShell)
+
+```powershell
+powershell -c "irm https://raw.githubusercontent.com/elice-dev/eci-cli/main/scripts/install.ps1 | iex"
 ```
 
 Supported platforms:
 
 - macOS (arm64, Apple Silicon)
 - Linux (x86_64)
+- Windows (x86_64)
 
 ## Quick start
 

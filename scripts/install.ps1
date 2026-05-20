@@ -144,7 +144,8 @@ function Install-EciCli {
         Write-Host "Installed $BinaryName to $exePath"
 
         $userPath = [Environment]::GetEnvironmentVariable('PATH', 'User')
-        $paths    = if ($userPath) { $userPath -split ';' | Where-Object { $_ } } else { @() }
+        # @() forces array — a single-element pipe output otherwise unwraps to a string.
+        $paths = @(if ($userPath) { $userPath -split ';' | Where-Object { $_ } } else { @() })
 
         if ($paths -notcontains $rootDir) {
             $newPath = ($paths + $rootDir) -join ';'
@@ -156,10 +157,8 @@ function Install-EciCli {
             Write-Host "PATH already includes $rootDir."
         }
 
-        # Persistent registry update above doesn't refresh this PowerShell
-        # session's PATH snapshot. Mirror the change into $env:PATH so
-        # 'eci ...' works in the same terminal right after install.
-        $sessionPaths = ($env:PATH -split ';') | Where-Object { $_ }
+        # Registry update doesn't refresh this session's $env:PATH — mirror it.
+        $sessionPaths = @(($env:PATH -split ';') | Where-Object { $_ })
         if ($sessionPaths -notcontains $rootDir) {
             $env:PATH = "$env:PATH;$rootDir"
         }

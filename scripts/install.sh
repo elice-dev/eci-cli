@@ -176,12 +176,12 @@ main() {
     cp -R "$FROM_DIR" "$bundle_dir"
   else
     asset="${BINARY_NAME}-${os}-${arch}-${version}.tar.gz"
-    url="${RELEASE_BASE}/v${version}/${asset}"
+    url="${RELEASE_BASE}/${version}/${asset}"
 
     printf "Downloading...\n"
     # --progress-bar shows a real bar; -fL keeps fail-on-error + follow.
     curl -fL --progress-bar -o "${tmpdir}/${asset}" "$url"
-    curl -fsSL -o "${tmpdir}/checksums.txt" "${RELEASE_BASE}/v${version}/checksums.txt"
+    curl -fsSL -o "${tmpdir}/checksums.txt" "${RELEASE_BASE}/${version}/checksums.txt"
 
     printf "Verifying...  "
     expected="$(grep "${asset}" "${tmpdir}/checksums.txt" | awk '{print $1}')"

@@ -102,8 +102,8 @@ function Install-EciCli {
         Write-Host ""
 
         $asset     = "$BinaryName-$os-$arch-$version.zip"
-        $assetUrl  = "$ReleaseBase/v$version/$asset"
-        $sumsUrl   = "$ReleaseBase/v$version/checksums.txt"
+        $assetUrl  = "$ReleaseBase/$version/$asset"
+        $sumsUrl   = "$ReleaseBase/$version/checksums.txt"
         $assetPath = Join-Path $tmpdir $asset
         $sumsPath  = Join-Path $tmpdir 'checksums.txt'
 
